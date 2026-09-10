@@ -228,6 +228,7 @@ textarea.comment{width:100%;border:1px solid var(--line-strong);border-radius:va
   </header>
   <nav class="tabs" id="tabs">
     <button data-tab="oversikt" class="active">Översikt</button>
+    <button data-tab="uppgift">Uppgiften</button>
     <button data-tab="medlemmar">Medlemmar</button>
     <button data-tab="chatt">Chatt</button>
     <button data-tab="rostning">Röstning</button>
@@ -264,16 +265,19 @@ const firebaseConfig = {
 const K = {
   members:'members', chat:'chat', polls:'polls',
   tasks:'tasks', avail:'avail', meetings:'meetings',
-  milestones:'milestones', contract:'contract'
+  milestones:'milestones', contract:'contract',
+  assignment:'assignment', workflow:'workflow', evidence:'evidence'
 };
 const DEFAULTS = {
-  members:[], chat:[], polls:[], tasks:[], avail:{}, meetings:[], milestones:null, contract:{}
+  members:[], chat:[], polls:[], tasks:[], avail:{}, meetings:[], milestones:null, contract:{},
+  assignment:{selectedCase:null}, workflow:{}, evidence:[]
 };
 
 let db = null;
 let state = {
   user:null, members:[], chat:[], polls:[], tasks:[],
-  avail:{}, meetings:[], milestones:null, contract:{}
+  avail:{}, meetings:[], milestones:null, contract:{},
+  assignment:{selectedCase:null}, workflow:{}, evidence:[]
 };
 let activeTab='oversikt';
 let unsubscribers = [];
@@ -443,6 +447,7 @@ function render(quiet){
   const v = document.getElementById('view');
   const scrollY = v.scrollTop;
   if(activeTab==='oversikt') v.innerHTML = viewOversikt();
+  if(activeTab==='uppgift') v.innerHTML = viewUppgift();
   if(activeTab==='medlemmar') v.innerHTML = viewMedlemmar();
   if(activeTab==='chatt') v.innerHTML = viewChatt();
   if(activeTab==='rostning') v.innerHTML = viewRostning();
@@ -516,6 +521,294 @@ function viewOversikt(){
 }
 
 /* ===================== MEDLEMMAR ===================== */
+/* ===================== UPPGIFTEN (inlagt från de bifogade underlagen) ===================== */
+const ASSIGNMENT_QUESTIONS = [
+  'Vad handlade desinformationen om?',
+  'Vem eller vilka spred den, och hur?',
+  'Vilken publik riktade den sig till, och vad var syftet?',
+  'Vad blev effekten? (t.ex. opinion, val, våld, tillit)',
+  'Hur är detta ett hot mot demokratin? (använd begrepp från kursen, t.ex. Dahl, Levitsky & Ziblatt, Farkas, Benkler)'
+];
+const ASSESSMENT_CRITERIA = [
+  {area:'Relevans & faktagrund', desc:'Har valt ett relevant fall och beskriver det korrekt, med källhänvisningar och källkritik.'},
+  {area:'Analysförmåga', desc:'Tillämpar begrepp eller teorier från kursen på ett sätt som visar förståelse för demokratins sårbarhet.'},
+  {area:'Koppling till demokrati', desc:'Visar hur desinformationen utgör ett hot mot demokratin (t.ex. tillit, val, institutioner, yttrandefrihet).'},
+  {area:'Presentation och samarbete', desc:'Presentationen är begriplig och strukturerad, och ni visar att alla i gruppen bidragit.'},
+  {area:'Teknisk genomförbarhet', desc:'Ljud och bild fungerar, längden hålls (max 8 minuter), och filen kan spelas upp i Canvas.'}
+];
+const CASE_OPTIONS = [
+  {rank:1, name:'Trumps "Big Lie" och valet 2020', score:'9,7/10', note:'Tydligt avgränsat, enorm dokumentation, officiella primärkällor och ett konkret händelseförlopp fram till 6 januari. Rekommenderat val.'},
+  {rank:2, name:'LVU-kampanjen mot Sverige', score:'9,1/10', note:'Exceptionellt bra svenskt case. Myndigheten för psykologiskt försvar har en särskild rapport och regeringen har dokumenterat kampanjen.'},
+  {rank:3, name:'Rysk desinformation om Ukraina', score:'8,7/10', note:'Mycket stor källbas, men måste avgränsas till en specifik narrativ eller kampanj för att inte bli för brett.'},
+  {rank:4, name:'Påverkanskampanjer kring Sveriges NATO-anslutning', score:'8,3/10', note:'Relevant och svenskt, men vissa effekter är svårare att kausalt isolera.'},
+  {rank:5, name:'QAnon', score:'8,0/10', note:'Väl dokumenterat och tydlig koppling till 6 januari, men kräver en konkret episod eller mekanism.'},
+  {rank:6, name:'Deepfakes i politiken', score:'7,7/10', note:'Bra visuellt case, men empiriska effekter är svårare att belägga — ett konkret val (t.ex. Slovakien 2023) krävs.'},
+  {rank:7, name:'Desinformation inför val – jämförande case', score:'7,4/10', note:'Massiv litteratur, men för brett tills det görs specifikt (ett val, en aktör, en narrativ).'},
+  {rank:8, name:'Konspirationer kring vaccin och covid-19', score:'7,0/10', note:'Mycket forskning, men kräver ett extra steg från folkhälsomisinformation till ett specifikt demokratiskt hot.'},
+  {rank:9, name:'Klimatförnekelse- och fördröjningskampanjer', score:'6,8/10', note:'Stor akademisk litteratur, men svårare att göra till ett enda konkret efter-2018-case på åtta minuter.'}
+];
+const ROLE_TEMPLATE = [
+  {person:'Thomas Hedlund Leijon', role:'Samordning + demokratiteori', task:'Formulera gemensam tes. Sammanfoga Dahl, Levitsky & Ziblatt, Benkler och Farkas med empirin. Kontrollera att varje påstående i analysen faktiskt stöds av källor.', delivers:'Tes, teoriram, slutlig faktakontroll, ca 75 sek muntligt.'},
+  {person:'Izabella Hietamäki', role:'Vad handlade desinformationen om?', task:'Kartlägg 3–4 centrala falska narrativ. Skilj på påståenden och vad officiella källor faktiskt fann.', delivers:'Kort faktaruta + källor + ca 70 sek muntligt.'},
+  {person:'Pontus Sahlqvist', role:'Aktörer, kanaler och spridning', task:'Kartlägg vem som spred och förstärkte narrativen: politiska aktörer, jurister, medier, sociala plattformar och nätverk.', delivers:'Spridningskedja/figur + ca 70 sek muntligt.'},
+  {person:'Åsa Thyrén Lind', role:'Målgrupp, syfte och effekter', task:'Analysera vilka grupper som mobiliserades, vilket politiskt syfte narrativen fyllde och vilka effekter som kan beläggas.', delivers:'Effekttabell + källor + ca 70 sek muntligt.'},
+  {person:'Sam Yoo', role:'Visuellt narrativ + teknisk produktion', task:'Bygg den gemensamma visuella tidslinjen, välj högst 5–6 bilder/klipp, kontrollera bildkällor, redigera och exportera.', delivers:'Slides/video, teknisk QA, ca 60–70 sek muntligt.'}
+];
+const WORKFLOW_STEPS = [
+  {id:'steg1', title:'Frys caset och tesen', desc:'Bestäm exakt formulering av case och tes. Undvik att göra en hel historik.'},
+  {id:'steg2', title:'Frys en gemensam källstandard', desc:'Primärkällor och officiella utredningar först, peer review därefter, nyhetsmedier bara för illustration/tidslinje.'},
+  {id:'steg3', title:'Arbeta parallellt', desc:'Var och en använder sin arbetsström och lämnar kärnfakta, 3–5 starka källor och två analytiska slutsatser.'},
+  {id:'steg4', title:'Bygg en gemensam evidenstabell', desc:'Se avsnittet "Gemensam evidenstabell" nedan — fyll i den tillsammans.'},
+  {id:'steg5', title:'Skriv manus (900–1 000 ord)', desc:'Motsvarar ca 7–8 minuter. Ta bort allt som inte behövs för att besvara uppgiftens fem huvudfrågor.'},
+  {id:'steg6', title:'Skapa visuellt stöd', desc:'Tidslinje, spridningskedja och en slutbild med de demokratiska mekanismerna. Undvik texttunga slides.'},
+  {id:'steg7', title:'Källkritisk kontroll', desc:'Skilj belagda effekter från tolkningar. Skriv "bidrog till" eller "sammanföll med" när kausaliteten inte är stark.'},
+  {id:'steg8', title:'Teknisk slutkontroll', desc:'Sikta på 7:20–7:40 minuter. Kontrollera ljud, läsbarhet, filformat och att videon går att spela innan uppladdning.'}
+];
+const VIDEO_DISPOSITION = [
+  {t:'0:00–0:35', del:'Inledning', innehall:'Vad är caset och varför är det demokratiskt relevant? Presentera huvudtesen.'},
+  {t:'0:35–1:50', del:'Vad var desinformationen?', innehall:'Visa 3–4 centrala påståenden och slå fast vad verifierade källor visade.'},
+  {t:'1:50–3:05', del:'Vem spred den och hur?', innehall:'Aktörer, medier, plattformar och förstärkning.'},
+  {t:'3:05–4:05', del:'Publik och syfte', innehall:'Vilka mobiliserades och vad tjänade delegitimeringen till politiskt?'},
+  {t:'4:05–5:30', del:'Effekter', innehall:'Tillit, valarbetare, institutionspress, certifiering och 6 januari.'},
+  {t:'5:30–7:15', del:'Demokratianalys', innehall:'Knyt till Dahl, Levitsky & Ziblatt, Benkler och Farkas.'},
+  {t:'7:15–7:45', del:'Slutsats', innehall:'Återvänd till tesen — vad lär caset oss om demokratisk sårbarhet?'},
+  {t:'7:45–8:00', del:'Marginal', innehall:'Avslutningsbild/källor. Planera inte tal ända till 8:00.'}
+];
+const SOURCE_MODEL = [
+  {typ:'Primärkällor/officiella dokument', ex:'Kongressutredning, domstolsbeslut, valmyndigheter, myndighetsrapporter.', hur:'Hög tillförlitlighet för vad myndigheten faktiskt beslutat eller funnit.'},
+  {typ:'Peer review', ex:'Vetenskapliga artiklar om spridning, polarisering, beteende och effekter.', hur:'Hög för avgränsade forskningsfrågor — kontrollera studiedesign.'},
+  {typ:'Forskningsinstitut/universitet', ex:'Stanford/EIP, International IDEA, Brookings m.fl.', hur:'Bra för syntes och kartläggning — notera institutionell position.'},
+  {typ:'Civilsamhälle/faktagranskning', ex:'Brennan Center, ADL, EU DisinfoLab m.fl.', hur:'Ofta detaljerad — använd med avsändarkritik och triangulera.'},
+  {typ:'Nyhetsmedier', ex:'Etablerade medier och videoklipp.', hur:'Bra för tidslinje/visuellt — sällan ensam källa för kausala slutsatser.'}
+];
+const SOURCE_CHECKLIST = [
+  'Vem är avsändaren och vilket mandat/intresse har den?',
+  'Är detta primärkälla, sekundärkälla eller kommentar?',
+  'Finns metod, data eller underlag redovisat?',
+  'Skiljer källan mellan misinformation, disinformation, propaganda och politisk åsikt?',
+  'Stödjer källan verkligen det påstående vi använder den för?',
+  'Finns en oberoende källa som kan triangulera samma uppgift?',
+  'Är effekten observerad, självrapporterad, statistiskt skattad eller bara antagen?',
+  'Är materialet aktuellt för den tidsperiod vi analyserar?'
+];
+const REPORT_TEMPLATE = [
+  'Gemensamt caseval och hur gruppen avgränsade frågan.',
+  'Hur researchen delades upp och vilka källtyper som användes.',
+  'Vad var och en av gruppmedlemmarna konkret producerade.',
+  'Hur materialet samordnades till manus, analys och visuellt stöd.',
+  'Hur gruppen kvalitetssäkrade källor, tidsgräns och teknisk funktion.'
+];
+const SOURCE_BANK = [
+  {cat:'Big Lie och USA-valet 2020 — kärnkällor', items:[
+    {t:'U.S. House Select Committee – Final Report on the January 6 Attack', d:'Officiell kongressutredning; central primärkälla.', u:'https://www.govinfo.gov/content/pkg/GPO-J6-REPORT/pdf/GPO-J6-REPORT.pdf'},
+    {t:'Election Integrity Partnership – The Long Fuse', d:'Systematisk kartläggning av valrelaterad misinformation/desinformation.', u:'https://www.eipartnership.net/report'},
+    {t:'Election Integrity Partnership – 2020 archive', d:'Arkiv med löpande analyser av narrativ och spridningsmönster.', u:'https://www.eipartnership.net/2020'},
+    {t:'Hoover Institution – Lost, Not Stolen', d:'Konservativt författad genomgång av 64 post-election lawsuits.', u:'https://www.hoover.org/research/lost-not-stolen-conservative-case-trump-lost-and-biden-won-2020-presidential-election'},
+    {t:'Brennan Center – Lessons for Our Elections from the January 6 Hearings', d:'Binder samman Big Lie med institutionell press och valadministration.', u:'https://www.brennancenter.org/our-work/research-reports/lessons-our-elections-january-6-hearings'},
+    {t:'Brennan Center – January 6 Hearings and the Big Lie’s Ongoing Damage to Democracy', d:'Hur valförnekelsen fortsatte påverka valinstitutioner och valarbetare.', u:'https://www.brennancenter.org/our-work/analysis-opinion/january-6-hearings-and-big-lies-ongoing-damage-democracy'},
+    {t:'Brennan Center – Election Misinformation', d:'Samlad forsknings- och policyportal om valmisinformation.', u:'https://www.brennancenter.org/election-misinformation'},
+    {t:'Brennan Center – Information Gaps and Misinformation in the 2022 Elections', d:'', u:'https://www.brennancenter.org/our-work/research-reports/information-gaps-and-misinformation-2022-elections'},
+    {t:'Stanford – Sleuthing for misinformation about voting', d:'Pedagogisk ingång till EIP:s metod och konkreta fall.', u:'https://news.stanford.edu/stories/2020/11/sleuthing-misinformation-voting'},
+    {t:'Stanford FSI – Free, Fair and Healthy Elections in 2020', d:'Forskningsnav med material om valintegritet och misinformation.', u:'https://fsi.stanford.edu/election-2020'}
+  ]},
+  {cat:'LVU-kampanjen mot Sverige', items:[
+    {t:'Myndigheten för psykologiskt försvar – The LVU Campaign', d:'Den viktigaste specialstudien: kronologi, narrativanalys, spridning.', u:'https://mpf.se/psychological-defence-agency/publications/archive/2023-04-28-the-lvu-campaign'},
+    {t:'Regeringen – Disinformation campaign against Swedish public authorities', d:'Officiell svensk dokumentation av kampanjen.', u:'https://www.government.se/articles/2022/02/disinformation-campaign-against-swedish-public-authorities-regarding-social-services/'},
+    {t:'Swedish Institute – Sweden’s image in the wake of Quran burnings and the LVU campaign', d:'Analyserar internationell Sverigebild och tillit.', u:'https://si.se/app/uploads/2024/07/sweden-image-report_swedens-image-in-the-wake-of-quran-burnings-and-the-lvu-campaign.pdf'},
+    {t:'Government Offices – National strategy against violent extremism and terrorism', d:'Hur LVU-kampanjens konsekvenser hanteras i svensk policy.', u:'https://www.government.se/contentassets/524b35ec9cdd4e30a501c6b7d9cbd694/national-strategy-against-violent-extremism-and-terrorism--prevent-avert-protect-and-manage-government-communication-20232456.pdf'}
+  ]},
+  {cat:'Rysk desinformation om Ukraina', items:[
+    {t:'EUvsDisinfo – All roads lead to Ukraine', d:'Översikt över centrala pro-Kreml-narrativ inför invasionen.', u:'https://euvsdisinfo.eu/all-roads-lead-to-ukraine-how-russia-uses-disinformation-to-support-its-efforts-on-the-ground/'},
+    {t:'EUvsDisinfo – Research archive', d:'Stor källsamling om pro-Kreml-desinformation.', u:'https://euvsdisinfo.eu/research/'},
+    {t:'EUvsDisinfo – 2022 disinfo research highlights', d:'Forskningsläget kring informationsmanipulation under krigets första år.', u:'https://euvsdisinfo.eu/2022-disinfo-research-highlights/'},
+    {t:'EU DisinfoLab – Doppelganger', d:'Dokumenterar en rysk operation med klonade mediesajter.', u:'https://www.disinfo.eu/doppelganger'}
+  ]},
+  {cat:'Sveriges NATO-anslutning och informationspåverkan', items:[
+    {t:'Swedish Institute – Sweden’s image (Quran burnings/LVU)', d:'Samspelet mellan Sverigebild, informationspåverkan och NATO-processen.', u:'https://si.se/app/uploads/2024/07/sweden-image-report_swedens-image-in-the-wake-of-quran-burnings-and-the-lvu-campaign.pdf'},
+    {t:'EUvsDisinfo – Research archive', d:'Sök särskilt på Sverige, NATO och pro-Kreml-narrativ.', u:'https://euvsdisinfo.eu/research/'},
+    {t:'EU DisinfoLab – Doppelganger', d:'Jämförelse för ryska metoder för medieimitation i Europa.', u:'https://www.disinfo.eu/doppelganger'},
+    {t:'Myndigheten för psykologiskt försvar – publications', d:'Utgångspunkt för svenska rapporter om informationspåverkan.', u:'https://mpf.se/psychological-defence-agency/publications'}
+  ]},
+  {cat:'QAnon', items:[
+    {t:'Frontiers in Sociology – Storm the Capitol', d:'Peer review-studie: politiskt tal, QAnon-hashtags och mobilisering.', u:'https://www.frontiersin.org/journals/sociology/articles/10.3389/fsoc.2022.876070/full'},
+    {t:'PMC – Storm the Capitol (open access)', d:'Samma studie, öppen tillgång.', u:'https://pmc.ncbi.nlm.nih.gov/articles/PMC9160324/'},
+    {t:'ADL – QAnon backgrounder', d:'Bakgrund, ideologi, spridning och koppling till 6 januari.', u:'https://www.adl.org/resources/backgrounder/qanon'},
+    {t:'ADL – 2021 Far-Right Conferences', d:'Hur QAnon flätades samman med andra extremistiska miljöer.', u:'https://www.adl.org/resources/report/2021-far-right-conferences-qanon-and-other-extremist-ideologies-dominate-events'},
+    {t:'ADL – QAnon’s Antisemitism and What Comes Next', d:'Analys av konspiratoriska narrativ och syndabockar.', u:'https://dc.adl.org/resources/report/qanons-antisemitism-and-what-comes-next'}
+  ]},
+  {cat:'Deepfakes i politiken', items:[
+    {t:'Brookings – The impact of generative AI in a global election year', d:'Konkret Slovakien-case med pre-election deepfake audio.', u:'https://www.brookings.edu/articles/the-impact-of-generative-ai-in-a-global-election-year/'},
+    {t:'European Political Science – On the way to deep fake democracy?', d:'Peer review-studie om deepfakes i valkampanjer 2023.', u:'https://link.springer.com/article/10.1057/s41304-024-00482-9'},
+    {t:'International IDEA – Challenges for electoral officials', d:'AI, deepfakes, trakasserier och valinstitutionernas sårbarhet.', u:'https://www.idea.int/theme/information-communication-and-technology-electoral-processes/election-officials-challenges-information-environment-around-elections'},
+    {t:'International IDEA – Protecting Elections in the Face of Online Malign Threats', d:'Jämför flera val 2022–2023, tar upp deepfake-audio i Slovakien.', u:'https://www.idea.int/news/protecting-elections-face-online-malign-threats'},
+    {t:'International IDEA – The Election Year 2024 and Tech Policy around the World', d:'Bred jämförelse av AI, deepfakes och valintegritet.', u:'https://www.idea.int/publications/catalogue/html/election-year-2024-and-tech-policy-around-world-what-lessons-european'},
+    {t:'Brookings – ...we’re still working in the dark', d:'Källkritisk motvikt: varnar för att överskatta AI:s valpåverkan.', u:'https://www.brookings.edu/articles/when-it-comes-to-understanding-ais-impact-on-elections-were-still-working-in-the-dark/'},
+    {t:'Brookings – What role is AI playing in election disinformation?', d:'Kort forskningsöversikt om begränsningar i evidensen.', u:'https://www.brookings.edu/articles/what-role-is-ai-playing-in-election-disinformation/'},
+    {t:'International IDEA – Safeguarding Democracy', d:'Nyare syntes om val, informationsintegritet och AI.', u:'https://www.idea.int/publications/catalogue/html/safeguarding-democracy-eu-development-nexus-elections-information'}
+  ]},
+  {cat:'Bredare desinformation inför val', items:[
+    {t:'International IDEA – Protecting Elections in the Face of Online Malign Threats', d:'Internationell översikt med flera konkreta valfall.', u:'https://www.idea.int/news/protecting-elections-face-online-malign-threats'},
+    {t:'International IDEA – Challenges for electoral officials', d:'Hot mot institutioner och tjänstemän som administrerar val.', u:'https://www.idea.int/theme/information-communication-and-technology-electoral-processes/election-officials-challenges-information-environment-around-elections'},
+    {t:'Brennan Center – Election Misinformation', d:'Stor resursbank om amerikansk valmisinformation.', u:'https://www.brennancenter.org/election-misinformation'},
+    {t:'Election Integrity Partnership – The Long Fuse', d:'En av de mest detaljerade studierna av ett enskilt valinformationssystem.', u:'https://www.eipartnership.net/report'}
+  ]},
+  {cat:'Vaccin- och covid-19-konspirationer', items:[
+    {t:'WHO – Combatting misinformation online', d:'Officiell WHO-ingång till covid-misinformation.', u:'https://www.who.int/teams/digital-health-and-innovation/digital-channels/combatting-misinformation-online'},
+    {t:'PMC – Misinformation About COVID-19 Vaccines on Social Media', d:'Systematisk/rapid review av forskning om misinformation.', u:'https://pmc.ncbi.nlm.nih.gov/articles/PMC9359307/'},
+    {t:'BMJ – Behavioural interventions to reduce vaccine hesitancy', d:'Forskningsbaserad syntes av mekanismer och motåtgärder.', u:'https://www.bmj.com/content/384/bmj-2023-076542'},
+    {t:'ScienceDirect – COVID-19 Vaccine Hesitancy on Social Media', d:'Stort dataset och analys av antivaccin-narrativ på Twitter.', u:'https://www.sciencedirect.com/org/science/article/pii/S2369296021000685'},
+    {t:'Human Vaccines & Immunotherapeutics – The COVID-19 vaccine social media infodemic', d:'Analys av polariserad vaccindiskussion.', u:'https://www.tandfonline.com/doi/full/10.1080/21645515.2021.1912551'}
+  ]},
+  {cat:'Klimatförnekelse och klimatfördröjning', items:[
+    {t:'Nature Human Behaviour – Psychological inoculation strategies...', d:'Stor preregistrerad experimentell studie i 12 länder.', u:'https://www.nature.com/articles/s41562-023-01736-0'},
+    {t:'npj Climate Action – Do fossil fuel firms reframe online communication?', d:'Data-driven studie om reframing från fossilindustrin.', u:'https://www.nature.com/articles/s44168-023-00086-x'},
+    {t:'Climate Action Against Disinformation – Deny, Deceive, Delay', d:'Rapport om klimatdesinformation kring COP26.', u:'https://caad.info/analysis/reports/deny-deceive-delay-documenting-and-responding-to-climate-disinformation-at-cop26-and-beyond/'}
+  ]},
+  {cat:'Övergripande demokrati, AI och informationsintegritet', items:[
+    {t:'International IDEA – The Election Year 2024 and Tech Policy around the World', d:'Jämförande policy- och demokratiperspektiv.', u:'https://www.idea.int/publications/catalogue/html/election-year-2024-and-tech-policy-around-world-what-lessons-european'},
+    {t:'International IDEA – Safeguarding Democracy', d:'Informationsintegritet som förutsättning för tillit och deltagande.', u:'https://www.idea.int/publications/catalogue/html/safeguarding-democracy-eu-development-nexus-elections-information'},
+    {t:'Brookings – AI can strengthen U.S. democracy—and weaken it', d:'Analys av AI, polarisering och demokratiska risker.', u:'https://www.brookings.edu/articles/ai-can-strengthen-u-s-democracy-and-weaken-it/'}
+  ]}
+];
+const CERTAINTY_OPTIONS = ['Hög','Medel','Låg'];
+const SOURCE_TYPE_OPTIONS = ['Primärkälla/officiellt dokument','Peer review','Forskningsinstitut','Civilsamhälle/faktagranskning','Nyhetsmedia'];
+
+function viewUppgift(){
+  const wf = state.workflow || {};
+  const doneCount = WORKFLOW_STEPS.filter(s=>wf[s.id]).length;
+  return `
+  <div class="panel">
+    <h2>Uppgiften — Desinformation som hot mot demokratin <span class="tip-icon" data-tip="Det här är själva SVAP11-uppgiften och gruppens forskningsunderlag, samlat på ett ställe så alla jobbar mot samma mål.">i</span></h2>
+    <p class="hint">Syfte: tillämpa kursens begrepp på ett verkligt fall, reflektera kring demokratins sårbarhet, och samarbeta i ett digitalt format. Video max 8 minuter, laddas upp i Canvas tillsammans med en redogörelse på max 500 ord om samarbetet.</p>
+    <h3>Fem frågor presentationen måste besvara</h3>
+    <ul>${ASSIGNMENT_QUESTIONS.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+    <h3>Bedömningskriterier (G/U)</h3>
+    <table>
+      <tr><th>Område</th><th>För godkänt krävs</th></tr>
+      ${ASSESSMENT_CRITERIA.map(c=>`<tr><td><b>${esc(c.area)}</b></td><td>${esc(c.desc)}</td></tr>`).join('')}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Caseval <span class="tip-icon" data-tip="Rankingen bygger på källtillgång, demokratikoppling, belägg för effekter, avgränsningsbarhet, teoretisk användbarhet och möjlighet till arbetsdelning.">i</span></h2>
+    <p class="hint">Rekommendation: <b>Trumps "Big Lie" och valet 2020</b> — starkast källäge och tydligast demokratisk effekt. LVU-kampanjen är ett starkt andrahandsval med svensk kontext.</p>
+    <table>
+      <tr><th>#</th><th>Case</th><th>Poäng</th><th>Motivering</th></tr>
+      ${CASE_OPTIONS.map(c=>`<tr><td>${c.rank}</td><td><b>${esc(c.name)}</b></td><td>${esc(c.score)}</td><td style="font-size:13px;">${esc(c.note)}</td></tr>`).join('')}
+    </table>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+      <h3>Gruppens val</h3>
+      ${state.assignment.selectedCase
+        ? `<p>Gruppen har valt: <b>${esc(state.assignment.selectedCase)}</b></p>`
+        : `<p class="empty">Inget case är valt ännu.</p>`}
+      ${state.user.isAdmin ? `
+        <div class="form-row" style="max-width:420px;">
+          <label for="case-select">Sätt gruppens val (gruppledare)</label>
+          <select id="case-select">
+            <option value="">— välj —</option>
+            ${CASE_OPTIONS.map(c=>`<option value="${esc(c.name)}" ${state.assignment.selectedCase===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn small" id="case-save">Spara caseval</button>
+      ` : ''}
+      <button class="btn small secondary" id="case-poll" style="margin-left:8px;">Skapa omröstning om caseval istället</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Arbetsfördelning på personroller <span class="tip-icon" data-tip="Mallen är skriven för Big Lie-caset men rollerna (samordning, vad-hände, aktörer, målgrupp/effekter, visuellt) fungerar för vilket case ni väljer.">i</span></h2>
+    <table>
+      <tr><th>Person</th><th>Huvudansvar</th><th>Exakt uppgift</th><th>Levererar</th></tr>
+      ${ROLE_TEMPLATE.map(r=>`<tr><td><b>${esc(r.person)}</b></td><td>${esc(r.role)}</td><td style="font-size:13px;">${esc(r.task)}</td><td style="font-size:13px;">${esc(r.delivers)}</td></tr>`).join('')}
+    </table>
+    ${state.user.isAdmin ? `<button class="btn small" id="tasks-from-template" style="margin-top:12px;">Skapa dessa fem som uppgifter i Arbetsfördelning</button>` : `<p class="hint" style="margin-top:10px;">Endast gruppledaren kan skapa uppgifterna automatiskt från mallen — de dyker sedan upp under fliken "Arbetsfördelning".</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Gemensamt körschema <span class="tip-icon" data-tip="Bocka av tillsammans — alla ser samma status live.">i</span> <span class="muted" style="font-family:var(--sans);font-size:13px;">${doneCount} av ${WORKFLOW_STEPS.length} klara</span></h2>
+    ${WORKFLOW_STEPS.map((s,i)=>`
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);">
+        <input type="checkbox" data-workflow="${s.id}" ${wf[s.id]?'checked':''} style="margin-top:4px;">
+        <div>
+          <div style="font-weight:500;${wf[s.id]?'text-decoration:line-through;color:var(--ink-soft);':''}">${i+1}. ${esc(s.title)}</div>
+          <div class="muted">${esc(s.desc)}</div>
+        </div>
+      </div>`).join('')}
+  </div>
+
+  <div class="panel">
+    <h2>Förslag på disposition (8 minuter)</h2>
+    <table>
+      <tr><th>Tid</th><th>Del</th><th>Innehåll</th></tr>
+      ${VIDEO_DISPOSITION.map(v=>`<tr><td style="white-space:nowrap;">${esc(v.t)}</td><td><b>${esc(v.del)}</b></td><td style="font-size:13px;">${esc(v.innehall)}</td></tr>`).join('')}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Källkritisk arbetsmodell</h2>
+    <table>
+      <tr><th>Källtyp</th><th>Exempel</th><th>Hur den bör användas</th></tr>
+      ${SOURCE_MODEL.map(s=>`<tr><td><b>${esc(s.typ)}</b></td><td style="font-size:13px;">${esc(s.ex)}</td><td style="font-size:13px;">${esc(s.hur)}</td></tr>`).join('')}
+    </table>
+    <h3 style="margin-top:16px;">Snabbcheck för källor</h3>
+    <ul>${SOURCE_CHECKLIST.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+  </div>
+
+  <div class="panel">
+    <h2>Källbank <span class="tip-icon" data-tip="Ordnad per case. Börja med kärnkällorna för det case ni väljer.">i</span></h2>
+    ${SOURCE_BANK.map((cat,ci)=>`
+      <details class="contract-sec">
+        <summary>${esc(cat.cat)} <span class="muted" style="font-family:var(--sans);font-size:12px;">${cat.items.length} källor</span></summary>
+        <div class="contract-body">
+          <ul>${cat.items.map(it=>`<li><a href="${esc(it.u)}" target="_blank" rel="noopener">${esc(it.t)}</a>${it.d?' — '+esc(it.d):''}</li>`).join('')}</ul>
+        </div>
+      </details>`).join('')}
+  </div>
+
+  <div class="panel">
+    <h2>Gemensam evidenstabell <span class="tip-icon" data-tip="Bilaga B ur underlaget. Fyll i tillsammans — en rad per centralt påstående ni bygger analysen på.">i</span></h2>
+    <p class="hint">Ett bra riktmärke: minst en rad per centralt påstående i manuset, med källa och hur säker kopplingen till demokrati är.</p>
+    <div class="two-col-form">
+      <div class="form-row"><label for="ev-claim">Påstående</label><input id="ev-claim" type="text" placeholder="Vad hävdas?"></div>
+      <div class="form-row"><label for="ev-source">Källa (namn)</label><input id="ev-source" type="text" placeholder="t.ex. Brennan Center"></div>
+    </div>
+    <div class="two-col-form">
+      <div class="form-row"><label for="ev-link">Länk (valfritt)</label><input id="ev-link" type="text" placeholder="https://..."></div>
+      <div class="form-row"><label for="ev-type">Källtyp</label>
+        <select id="ev-type">${SOURCE_TYPE_OPTIONS.map(o=>`<option>${esc(o)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="two-col-form">
+      <div class="form-row"><label for="ev-shows">Vad källan visar</label><input id="ev-shows" type="text"></div>
+      <div class="form-row"><label for="ev-dim">Demokratisk dimension</label><input id="ev-dim" type="text" placeholder="t.ex. vallegitimitet, tillit"></div>
+    </div>
+    <div class="form-row" style="max-width:200px;"><label for="ev-cert">Säkerhet</label>
+      <select id="ev-cert">${CERTAINTY_OPTIONS.map(o=>`<option>${esc(o)}</option>`).join('')}</select>
+    </div>
+    <button class="btn small" id="ev-add">Lägg till rad</button>
+
+    ${state.evidence.length ? `
+    <table style="margin-top:16px;">
+      <tr><th>Påstående</th><th>Källa</th><th>Typ</th><th>Visar</th><th>Dimension</th><th>Säkerhet</th><th></th></tr>
+      ${state.evidence.map(r=>`<tr>
+        <td>${esc(r.claim)}</td>
+        <td>${r.link?`<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.source)}</a>`:esc(r.source)}</td>
+        <td style="font-size:12.5px;">${esc(r.sourceType)}</td>
+        <td style="font-size:13px;">${esc(r.shows)}</td>
+        <td style="font-size:13px;">${esc(r.dim)}</td>
+        <td>${esc(r.certainty)}</td>
+        <td>${(state.user.isAdmin || r.addedBy===state.user.name) ? `<button class="btn small secondary" data-ev-delete="${r.id}">Ta bort</button>` : ''}</td>
+      </tr>`).join('')}
+    </table>` : `<p class="empty" style="margin-top:12px;">Inga rader tillagda ännu.</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Mall för 500-ordsredogörelsen</h2>
+    <p class="hint">Skriv den först när filmen är klar, så den beskriver det faktiska arbetet.</p>
+    <ol>${REPORT_TEMPLATE.map(r=>`<li>${esc(r)}</li>`).join('')}</ol>
+  </div>`;
+}
+
 function viewMedlemmar(){
   const approved = state.members.filter(m=>m.status==='approved');
   const pending = state.members.filter(m=>m.status==='pending');
@@ -841,6 +1134,71 @@ function attachHandlers(){
     await sSet(K.milestones, ms);
     state.milestones = ms; render();
   });
+
+  // uppgiften: caseval
+  const caseSave = document.getElementById('case-save');
+  if(caseSave) caseSave.addEventListener('click', async ()=>{
+    const val = document.getElementById('case-select').value;
+    const a = { ...state.assignment, selectedCase: val || null };
+    await sSet(K.assignment, a); state.assignment = a; render();
+  });
+  const casePoll = document.getElementById('case-poll');
+  if(casePoll) casePoll.addEventListener('click', async ()=>{
+    state.polls.push({
+      id:uid(), question:'Vilket case ska vi välja för gruppuppgiften?',
+      options: CASE_OPTIONS.map(c=>c.name), votes:{}, createdBy:state.user.name, createdAt:Date.now()
+    });
+    await sSet(K.polls, state.polls);
+    activeTab='rostning';
+    [...document.querySelectorAll('#tabs button')].forEach(x=>x.classList.toggle('active', x.dataset.tab==='rostning'));
+    render();
+  });
+
+  // uppgiften: skapa uppgifter från rollmallen
+  const tasksFromTemplate = document.getElementById('tasks-from-template');
+  if(tasksFromTemplate) tasksFromTemplate.addEventListener('click', async ()=>{
+    const approvedNames = state.members.filter(m=>m.status==='approved').map(m=>m.name);
+    ROLE_TEMPLATE.forEach(r=>{
+      const assignee = approvedNames.find(n=>n===r.person) || r.person;
+      state.tasks.push({
+        id:uid(), title:r.role, assignee, deadline:(state.milestones?state.milestones.check1:''),
+        desc:r.task, status:'ej', createdAt:Date.now()
+      });
+    });
+    await sSet(K.tasks, state.tasks);
+    activeTab='uppgifter';
+    [...document.querySelectorAll('#tabs button')].forEach(x=>x.classList.toggle('active', x.dataset.tab==='uppgifter'));
+    render();
+  });
+
+  // uppgiften: körschema
+  v.querySelectorAll('[data-workflow]').forEach(cb=>cb.addEventListener('change', async ()=>{
+    const wf = { ...state.workflow };
+    wf[cb.dataset.workflow] = cb.checked;
+    await sSet(K.workflow, wf); state.workflow = wf; render();
+  }));
+
+  // uppgiften: evidenstabell
+  const evAdd = document.getElementById('ev-add');
+  if(evAdd) evAdd.addEventListener('click', async ()=>{
+    const claim = document.getElementById('ev-claim').value.trim();
+    const source = document.getElementById('ev-source').value.trim();
+    if(!claim || !source) return;
+    state.evidence.push({
+      id:uid(), claim, source,
+      link: document.getElementById('ev-link').value.trim(),
+      sourceType: document.getElementById('ev-type').value,
+      shows: document.getElementById('ev-shows').value.trim(),
+      dim: document.getElementById('ev-dim').value.trim(),
+      certainty: document.getElementById('ev-cert').value,
+      addedBy: state.user.name, addedAt: Date.now()
+    });
+    await sSet(K.evidence, state.evidence); render();
+  });
+  v.querySelectorAll('[data-ev-delete]').forEach(b=>b.addEventListener('click', async ()=>{
+    state.evidence = state.evidence.filter(r=>r.id!==b.dataset.evDelete);
+    await sSet(K.evidence, state.evidence); render();
+  }));
 
   // members
   v.querySelectorAll('[data-approve]').forEach(b=>b.addEventListener('click', async ()=>{
