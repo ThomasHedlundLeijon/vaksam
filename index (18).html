@@ -1,0 +1,2169 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vaksam — samarbetsplattform för gruppuppgiften</title>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap');
+
+:root{
+  --paper:#EFEDE6;
+  --paper-dim:#E4E0D2;
+  --panel:#F7F5EF;
+  --ink:#1B2430;
+  --ink-soft:#5B6472;
+  --line:#C9C2AC;
+  --line-strong:#A79E82;
+  --accent:#A9791C;
+  --accent-deep:#7C5A14;
+  --green:#33553A;
+  --green-bg:#E4EBE2;
+  --red:#8C3323;
+  --red-bg:#F1E1DC;
+  --radius:3px;
+  --serif:'Fraunces', Georgia, serif;
+  --sans:'IBM Plex Sans', -apple-system, sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--sans);}
+body{min-height:100vh;}
+h1,h2,h3,h4{font-family:var(--serif);font-weight:600;margin:0 0 .3em 0;letter-spacing:.2px;}
+p{line-height:1.55;}
+button{font-family:var(--sans);cursor:pointer;}
+input,select,textarea{font-family:var(--sans);}
+a{color:var(--accent-deep);}
+
+/* ---------- tooltip ---------- */
+.tip{position:relative;border-bottom:1px dotted var(--line-strong);cursor:help;}
+.tip:hover::after,.tip:focus::after{
+  content:attr(data-tip);
+  position:absolute;left:0;top:125%;
+  background:var(--ink);color:var(--paper);
+  font-size:12.5px;line-height:1.4;font-family:var(--sans);
+  padding:8px 10px;border-radius:2px;width:240px;
+  z-index:50;box-shadow:0 3px 10px rgba(0,0,0,.25);
+  white-space:normal;
+}
+.tip-icon{display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;border:1px solid var(--line-strong);border-radius:50%;
+  font-size:11px;font-style:italic;font-family:var(--serif);color:var(--ink-soft);
+  margin-left:6px;cursor:help;position:relative;flex:none;}
+.tip-icon:hover::after,.tip-icon:focus::after{
+  content:attr(data-tip);position:absolute;left:50%;transform:translateX(-50%);
+  top:130%;background:var(--ink);color:var(--paper);font-size:12.5px;line-height:1.4;
+  padding:8px 10px;border-radius:2px;width:230px;z-index:60;
+  box-shadow:0 3px 10px rgba(0,0,0,.25);white-space:normal;font-family:var(--sans);font-style:normal;
+}
+
+/* ---------- gate ---------- */
+#gate{min-height:100vh;display:none;align-items:center;justify-content:center;padding:24px;}
+.gate-card{background:var(--panel);border:1px solid var(--line);max-width:460px;width:100%;padding:36px 32px;border-radius:var(--radius);}
+.gate-mark{font-family:var(--serif);font-size:13px;letter-spacing:.5px;color:var(--accent-deep);margin-bottom:6px;}
+.gate-card h1{font-size:28px;margin-bottom:4px;}
+.gate-card .sub{color:var(--ink-soft);font-size:14.5px;margin-bottom:24px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:5px;}
+.field input{width:100%;padding:10px 11px;border:1px solid var(--line-strong);border-radius:var(--radius);background:#fff;font-size:15px;}
+.field input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+.btn{display:inline-block;padding:11px 18px;border-radius:var(--radius);border:1px solid var(--ink);background:var(--ink);color:var(--paper);font-size:14.5px;font-weight:500;}
+.btn:hover{background:#000;}
+.btn.secondary{background:transparent;color:var(--ink);border:1px solid var(--line-strong);}
+.btn.secondary:hover{border-color:var(--ink);}
+.btn.small{padding:6px 11px;font-size:13px;}
+.btn.danger{background:var(--red);border-color:var(--red);}
+.btn:disabled{opacity:.45;cursor:not-allowed;}
+.gate-status{margin-top:18px;padding:12px 14px;border-radius:var(--radius);font-size:14px;border:1px solid var(--line);}
+.gate-status.pending{background:#F4EEDD;border-color:#DCCB94;}
+.gate-status.err{background:var(--red-bg);border-color:#D8B7AB;color:var(--red);}
+
+/* ---------- shell ---------- */
+#shell{display:none;}
+header.top{background:var(--ink);color:var(--paper);padding:16px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+header.top .brand{font-family:var(--serif);font-size:19px;}
+header.top .brand span{color:#D8C287;}
+header.top .who{font-size:13px;color:#C7CCD4;text-align:right;}
+header.top .who b{color:var(--paper);}
+nav.tabs{display:flex;gap:2px;background:var(--paper-dim);padding:0 24px;border-bottom:1px solid var(--line-strong);overflow-x:auto;}
+nav.tabs button{background:transparent;border:none;border-bottom:3px solid transparent;padding:13px 16px;font-size:14px;color:var(--ink-soft);white-space:nowrap;font-weight:500;}
+nav.tabs button.active{color:var(--ink);border-bottom-color:var(--accent);background:var(--panel);}
+nav.tabs button:hover{color:var(--ink);}
+main.view{max-width:1080px;margin:0 auto;padding:28px 24px 80px;}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:22px 24px;margin-bottom:20px;}
+.panel h2{font-size:20px;}
+.panel h3{font-size:16px;}
+.hint{color:var(--ink-soft);font-size:13.5px;margin-top:-2px;margin-bottom:16px;}
+.grid2{display:grid;grid-template-columns:1.3fr 1fr;gap:20px;}
+@media (max-width:760px){.grid2{grid-template-columns:1fr;}}
+.badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:500;}
+.badge.admin{background:#E8DDBB;color:var(--accent-deep);}
+.badge.approved{background:var(--green-bg);color:var(--green);}
+.badge.pending{background:#F4EEDD;color:#8A6D1E;}
+table{width:100%;border-collapse:collapse;font-size:14px;}
+th{text-align:left;font-weight:500;color:var(--ink-soft);border-bottom:1px solid var(--line-strong);padding:8px 6px;font-size:12.5px;}
+td{padding:9px 6px;border-bottom:1px solid var(--line);vertical-align:top;}
+.empty{color:var(--ink-soft);font-style:italic;font-size:14px;padding:10px 0;}
+
+/* timeline */
+.timeline{position:relative;padding-left:26px;}
+.timeline::before{content:'';position:absolute;left:8px;top:6px;bottom:6px;width:1px;background:var(--line-strong);}
+.tl-item{position:relative;padding-bottom:20px;}
+.tl-item::before{content:attr(data-n);position:absolute;left:-26px;top:0;width:17px;height:17px;border-radius:50%;background:var(--panel);border:1.5px solid var(--accent-deep);color:var(--accent-deep);font-size:10.5px;display:flex;align-items:center;justify-content:center;font-family:var(--serif);}
+.tl-item h4{font-size:14.5px;margin-bottom:2px;}
+.tl-item .d{font-size:12.5px;color:var(--ink-soft);}
+
+/* chat */
+#chatlog{height:360px;overflow-y:auto;border:1px solid var(--line);background:#fff;border-radius:var(--radius);padding:14px;margin-bottom:12px;}
+.msg{margin-bottom:12px;}
+.msg .m-head{font-size:12.5px;color:var(--ink-soft);margin-bottom:2px;}
+.msg .m-head b{color:var(--ink);}
+.msg .m-body{font-size:14.5px;background:var(--paper-dim);display:inline-block;padding:7px 11px;border-radius:var(--radius);max-width:80%;}
+.msg.me .m-body{background:#E8DDBB;}
+.chatform{display:flex;gap:8px;}
+.chatform input{flex:1;padding:10px;border:1px solid var(--line-strong);border-radius:var(--radius);}
+
+/* votes */
+.poll{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:14px;background:#fff;}
+.poll h4{font-size:15px;}
+.opt-row{display:flex;align-items:center;gap:10px;margin:6px 0;}
+.opt-bar-wrap{flex:1;background:var(--paper-dim);border-radius:2px;height:20px;position:relative;overflow:hidden;}
+.opt-bar{background:var(--accent);height:100%;}
+.opt-row button{background:none;border:1px solid var(--line-strong);border-radius:var(--radius);padding:5px 10px;font-size:13px;}
+.opt-row button.voted{border-color:var(--accent-deep);background:#F4EEDD;}
+.opt-pct{font-size:12.5px;color:var(--ink-soft);width:80px;text-align:right;}
+
+/* tasks */
+.task-card{border:1px solid var(--line);border-left:4px solid var(--line-strong);border-radius:var(--radius);padding:12px 14px;margin-bottom:10px;background:#fff;}
+.task-card.status-klar{border-left-color:var(--green);}
+.task-card.status-pagar{border-left-color:var(--accent);}
+.task-card.status-forsenad{border-left-color:var(--red);}
+.task-top{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;}
+.task-top h4{font-size:15px;margin:0;}
+.task-meta{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
+.status-select{font-size:12.5px;padding:4px 6px;border:1px solid var(--line-strong);border-radius:var(--radius);}
+
+/* availability grid */
+.availgrid{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:#fff;}
+.availgrid table{font-size:12px;}
+.availgrid th,.availgrid td{border:1px solid var(--line);padding:0;text-align:center;}
+.availgrid th{padding:6px 4px;background:var(--paper-dim);font-size:11.5px;}
+.cell-btn{width:100%;height:30px;border:none;background:#fff;}
+.cell-btn.mine{background:#D9E7D6;}
+.cell-btn:hover{background:#EFE8CF;}
+.heat0{background:#fff;}
+.heat1{background:#F3EEDD;}
+.heat2{background:#E8DDBB;}
+.heat3{background:#DCC98F;}
+.heatfull{background:#33553A;}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink-soft);margin:10px 0;flex-wrap:wrap;}
+.legend span{display:inline-flex;align-items:center;gap:5px;}
+.swatch{width:12px;height:12px;border:1px solid var(--line);display:inline-block;}
+
+/* contract */
+details.contract-sec{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;background:#fff;}
+details.contract-sec summary{padding:13px 16px;font-family:var(--serif);font-size:16px;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;}
+details.contract-sec summary::-webkit-details-marker{display:none;}
+details.contract-sec summary::after{content:'+';font-size:20px;color:var(--ink-soft);}
+details.contract-sec[open] summary::after{content:'–';}
+.contract-body{padding:0 16px 16px;}
+.contract-body ul{margin:0 0 10px 0;padding-left:20px;}
+.contract-body li{margin-bottom:4px;font-size:14.5px;}
+.approve-row{display:flex;align-items:center;gap:10px;padding-top:8px;border-top:1px solid var(--line);flex-wrap:wrap;}
+.who-approved{font-size:12px;color:var(--ink-soft);}
+textarea.comment{width:100%;border:1px solid var(--line-strong);border-radius:var(--radius);padding:8px;font-size:13.5px;margin-top:8px;min-height:50px;}
+.comment-item{font-size:13px;background:var(--paper-dim);padding:6px 9px;border-radius:var(--radius);margin-top:6px;}
+
+.two-col-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.form-row{margin-bottom:10px;}
+.form-row label{display:block;font-size:13px;color:var(--ink-soft);margin-bottom:4px;}
+.form-row input,.form-row select,.form-row textarea{width:100%;padding:8px 9px;border:1px solid var(--line-strong);border-radius:var(--radius);font-size:14px;}
+
+.ai-box{background:#F4EEDD;border:1px solid #DCCB94;border-radius:var(--radius);padding:12px 14px;font-size:14px;margin-top:12px;white-space:pre-wrap;}
+.muted{color:var(--ink-soft);font-size:13px;}
+
+/* utskrift av studiegruppskontraktet */
+#print-area{display:none;}
+@media print{
+  body > *:not(#print-area){display:none !important;}
+  #print-area{display:block !important;padding:40px;font-family:var(--sans);color:#111;max-width:720px;margin:0 auto;}
+  #print-area h1{font-family:var(--serif);font-size:26px;margin-bottom:4px;}
+  #print-area h2{font-family:var(--serif);font-size:17px;margin-top:22px;border-bottom:1px solid #999;padding-bottom:4px;}
+  #print-area h3{font-family:var(--serif);font-size:15px;margin-top:16px;}
+  #print-area ul{padding-left:20px;}
+  #print-area li{margin-bottom:4px;font-size:13.5px;}
+  #print-area .pc-meta{color:#555;font-size:12px;font-style:italic;}
+}
+
+/* setup screen (visas om Firebase inte är konfigurerat än) */
+#setup{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;}
+.setup-card{background:var(--panel);border:1px solid var(--line);max-width:560px;width:100%;padding:32px;border-radius:var(--radius);}
+.setup-card h1{font-size:22px;}
+.setup-card code{background:var(--paper-dim);padding:2px 6px;border-radius:2px;font-size:13px;}
+.setup-card ol{padding-left:20px;}
+.setup-card li{margin-bottom:8px;font-size:14.5px;line-height:1.5;}
+</style>
+</head>
+<body>
+
+<div id="setup" style="display:none;">
+  <div class="setup-card">
+    <h1>Nästan klart — koppla Firebase</h1>
+    <p>Plattformen behöver kopplas till ditt gratis Firebase-projekt innan den fungerar. Öppna filen i en textredigerare, leta upp raden som börjar med <code>const firebaseConfig</code> nära slutet av filen, och klistra in de sju värdena du fick från Firebase (se manualen). Spara filen och ladda om sidan.</p>
+  </div>
+</div>
+
+<div id="gate">
+  <div class="gate-card">
+    <div class="gate-mark">SVAP11 · GRUPPUPPGIFT DESINFORMATION</div>
+    <h1>Vaksam</h1>
+    <div class="sub">Samarbetsplattformen för er grupp. Skriv in namn och e‑post för att gå med — Thomas godkänner nya medlemmar.</div>
+    <div class="field">
+      <label for="gname">Namn</label>
+      <input id="gname" type="text" placeholder="För- och efternamn" autocomplete="name">
+    </div>
+    <div class="field">
+      <label for="gemail">E‑postadress</label>
+      <input id="gemail" type="email" placeholder="namn@exempel.se" autocomplete="email">
+    </div>
+    <button class="btn" id="gate-submit" style="width:100%;">Gå med i gruppen</button>
+    <div id="gate-status" style="display:none;"></div>
+  </div>
+</div>
+
+<div id="shell">
+  <header class="top">
+    <div class="brand">Vaksam <span>· desinformation &amp; demokrati</span></div>
+    <div class="who">Inloggad som <b id="who-name"></b> <span id="who-badge"></span><br>
+      <a href="#" id="switch-user" style="color:#C7CCD4;font-size:12px;">byt användare</a>
+    </div>
+  </header>
+  <nav class="tabs" id="tabs">
+    <button data-tab="oversikt" class="active">Översikt</button>
+    <button data-tab="uppgift">Uppgiften</button>
+    <button data-tab="medlemmar">Medlemmar</button>
+    <button data-tab="chatt">Chatt</button>
+    <button data-tab="rostning">Röstning</button>
+    <button data-tab="uppgifter">Arbetsfördelning</button>
+    <button data-tab="kalender">Möten &amp; kalender</button>
+    <button data-tab="kontrakt">Gruppkontrakt</button>
+    <button data-tab="material">Material &amp; länkar</button>
+    <button data-tab="forslag">Förbättringsförslag</button>
+  </nav>
+  <main class="view" id="view"></main>
+</div>
+
+<div id="print-area"></div>
+
+<script>
+/* =====================================================================
+   VAKSAM — kollaborativ plattform för gruppuppgiften
+   Delad data lagras i Firebase Firestore (gratis) så att alla
+   medlemmar som öppnar sidan, var de än är, ser samma data live.
+===================================================================== */
+const ADMIN_EMAIL = 'thomas.hedlundleijon@gmail.com';
+
+/* =====================================================================
+   FIREBASE-KOPPLING
+   Klistra in dina egna sju värden här (se manualen från Thomas).
+   Detta är AVSETT att synas i webbläsaren — det är ingen hemlig nyckel,
+   säkerheten sköts istället av reglerna du satte i Firestore.
+===================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyD50Vmyx2YGxqWnm-NN30wZ-R30UE2hd7o",
+  authDomain: "vaksam-studieapp-samarbete.firebaseapp.com",
+  projectId: "vaksam-studieapp-samarbete",
+  storageBucket: "vaksam-studieapp-samarbete.firebasestorage.app",
+  messagingSenderId: "700118575725",
+  appId: "1:700118575725:web:07e3a12a773495b1996d64"
+};
+
+const K = {
+  members:'members', chat:'chat', polls:'polls',
+  tasks:'tasks', avail:'avail', meetings:'meetings',
+  milestones:'milestones', contract:'contract',
+  assignment:'assignment', workflow:'workflow', evidence:'evidence',
+  threads:'threads', materials:'materials', suggestions:'suggestions', agenda:'agenda'
+};
+const DEFAULTS = {
+  members:[], chat:[], polls:[], tasks:[], avail:{}, meetings:[], milestones:null, contract:{},
+  assignment:{selectedCase:null}, workflow:{}, evidence:[],
+  threads:[], materials:{docs:[], media:[], finalVideo:'', books:[]}, suggestions:[], agenda:[]
+};
+
+let db = null;
+let state = {
+  user:null, members:[], chat:[], polls:[], tasks:[],
+  avail:{}, meetings:[], milestones:null, contract:{},
+  assignment:{selectedCase:null}, workflow:{}, evidence:[],
+  threads:[], materials:{docs:[], media:[], finalVideo:'', books:[]}, suggestions:[], agenda:[]
+};
+let activeTab='oversikt';
+let activeThread='general';
+let unsubscribers = [];
+let gateUnsub = null;
+let bookingDraft = null;
+let notifiedMeetingKeys = new Set();
+let reminderTimer = null;
+let openDetailsKeys = new Set();
+let contractConfirmed = false;
+let contractPromptDismissed = false;
+
+function isConfigured(){
+  return firebaseConfig.apiKey && !firebaseConfig.apiKey.includes('KLISTRA_IN_HÄR');
+}
+
+/* ---------------- Firestore-hjälpfunktioner ---------------- */
+// Varje "nyckel" (members, chat, polls, ...) lagras som ETT dokument
+// i samlingen "vaksam", med all data i fältet "data".
+function docRef(key){ return db.collection('vaksam').doc(key); }
+
+async function sGetOnce(key, fallback){
+  try{
+    const snap = await docRef(key).get();
+    return snap.exists ? snap.data().data : fallback;
+  }catch(e){ console.error('Firestore-läsfel', key, e); return fallback; }
+}
+async function sSet(key, value){
+  try{ await docRef(key).set({ data: value }); return true; }
+  catch(e){ console.error('Firestore-skrivfel', key, e); alert('Kunde inte spara ändringen. Kontrollera internetuppkopplingen.'); return false; }
+}
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso){
+  if(!iso) return '–';
+  const d=new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('sv-SE',{weekday:'short',day:'numeric',month:'short'});
+}
+function todayISO(offsetDays=0){
+  const d=new Date(); d.setDate(d.getDate()+offsetDays);
+  return d.toISOString().slice(0,10);
+}
+function daysBetween(a,b){ return Math.round((new Date(b)-new Date(a))/86400000); }
+
+/* ---------------- default milestones ---------------- */
+function computeMilestones(deadline){
+  const finalReady = todayISO(0);
+  const d = new Date(deadline+'T00:00:00');
+  const fr = new Date(d); fr.setDate(fr.getDate()-2);
+  const gr = new Date(fr); gr.setDate(gr.getDate()-2);
+  const c1 = new Date(gr); c1.setDate(c1.getDate()-5);
+  return {
+    deadline,
+    finalReady: fr.toISOString().slice(0,10),
+    genrep: gr.toISOString().slice(0,10),
+    check1: c1.toISOString().slice(0,10)
+  };
+}
+
+/* ---------------- INIT ---------------- */
+window.addEventListener('DOMContentLoaded', ()=>{
+  if(!isConfigured()){
+    document.getElementById('setup').style.display='flex';
+    return;
+  }
+  try{
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+  }catch(e){
+    console.error(e);
+    document.getElementById('setup').style.display='flex';
+    return;
+  }
+  document.getElementById('gate').style.display='flex';
+});
+
+/* ---------------- GATE ---------------- */
+document.getElementById('gate-submit').addEventListener('click', onGateSubmit);
+document.getElementById('gemail').addEventListener('keydown', e=>{ if(e.key==='Enter') onGateSubmit(); });
+document.getElementById('gname').addEventListener('keydown', e=>{ if(e.key==='Enter') onGateSubmit(); });
+
+async function onGateSubmit(){
+  const name = document.getElementById('gname').value.trim();
+  const email = document.getElementById('gemail').value.trim().toLowerCase();
+  const statusBox = document.getElementById('gate-status');
+  statusBox.style.display='none';
+  if(!name || !email || !email.includes('@')){
+    statusBox.className='gate-status err'; statusBox.style.display='block';
+    statusBox.textContent='Fyll i både namn och en giltig e‑postadress.';
+    return;
+  }
+  document.getElementById('gate-submit').disabled = true;
+  const members = await sGetOnce(K.members, []);
+  let member = members.find(m=>m.email===email);
+  const isAdmin = email===ADMIN_EMAIL;
+
+  if(!member){
+    member = { id:uid(), name, email, status: isAdmin?'approved':'pending', isAdmin, joinedAt:new Date().toISOString() };
+    members.push(member);
+    await sSet(K.members, members);
+  } else {
+    member.name = name; // keep name updated
+    if(isAdmin) member.isAdmin = true;
+    if(isAdmin && member.status!=='approved') member.status='approved';
+    await sSet(K.members, members);
+  }
+  document.getElementById('gate-submit').disabled = false;
+
+  if(member.status==='pending'){
+    statusBox.className='gate-status pending'; statusBox.style.display='block';
+    statusBox.innerHTML='Din förfrågan är skickad. <b>Thomas</b> behöver godkänna dig innan du kommer in — den här sidan kommer in dig automatiskt så snart det sker, du behöver inte ladda om.';
+    // lyssna live på medlemslistan tills personen blir godkänd
+    if(gateUnsub) gateUnsub();
+    gateUnsub = docRef(K.members).onSnapshot(snap=>{
+      const ms = snap.exists ? snap.data().data : [];
+      const me = ms.find(m=>m.email===email);
+      if(me && me.status==='approved'){ if(gateUnsub) gateUnsub(); enterApp(me); }
+    });
+    return;
+  }
+  enterApp(member);
+}
+
+function enterApp(member){
+  state.user = member;
+  document.getElementById('gate').style.display='none';
+  document.getElementById('shell').style.display='block';
+  document.getElementById('who-name').textContent = member.name;
+  document.getElementById('who-badge').innerHTML = member.isAdmin ? '<span class="badge admin">gruppledare</span>' : '<span class="badge approved">medlem</span>';
+  subscribeAll();
+  startReminderWatcher();
+}
+
+/* ---------------- mötespåminnelser (bästa möjliga, kräver att fliken är öppen) ----------------
+   OBS: det här är INTE riktiga push-notiser som når mobilen när sidan är stängd — det finns
+   ingen server att skicka dem ifrån på en gratis GitHub-sida. Så länge fliken ligger öppen i
+   webbläsaren (kan ligga i bakgrunden) visas en webbläsarnotis 10 minuter innan ett möte man
+   är inbjuden till. */
+function startReminderWatcher(){
+  if(reminderTimer) clearInterval(reminderTimer);
+  checkMeetingReminders();
+  reminderTimer = setInterval(checkMeetingReminders, 30000);
+}
+function checkMeetingReminders(){
+  if(!('Notification' in window) || Notification.permission!=='granted') return;
+  const now = Date.now();
+  state.meetings.forEach(m=>{
+    const invited = !m.invitees || !m.invitees.length || m.invitees.includes(state.user.email);
+    if(!invited) return;
+    const start = new Date(m.date+'T'+m.time+':00').getTime();
+    const minutesLeft = (start-now)/60000;
+    const key = m.id;
+    if(minutesLeft<=10 && minutesLeft>8.5 && !notifiedMeetingKeys.has(key)){
+      notifiedMeetingKeys.add(key);
+      try{
+        new Notification('Möte om 10 minuter — Vaksam', {
+          body: `${fmtDate(m.date)} kl ${m.time}${m.videoService==='zoom'?' (Zoom)':' (Google Meet)'}`
+        });
+      }catch(e){}
+    }
+  });
+}
+
+document.getElementById('switch-user').addEventListener('click', e=>{
+  e.preventDefault();
+  unsubscribers.forEach(u=>u());
+  unsubscribers = [];
+  if(gateUnsub) gateUnsub();
+  if(reminderTimer) clearInterval(reminderTimer);
+  state.user=null;
+  document.getElementById('shell').style.display='none';
+  document.getElementById('gate').style.display='flex';
+  document.getElementById('gate-status').style.display='none';
+});
+
+/* ---------------- realtidslyssnare för all delad data ---------------- */
+function subscribeAll(){
+  unsubscribers.forEach(u=>u());
+  unsubscribers = [];
+  let firstLoadCount = 0;
+  const total = Object.keys(K).length;
+  Object.entries(K).forEach(([stateKey, docKey])=>{
+    const unsub = docRef(docKey).onSnapshot(snap=>{
+      state[stateKey] = snap.exists ? snap.data().data : DEFAULTS[stateKey];
+      if(stateKey==='members'){
+        const me = state.members.find(m=>m.email===state.user.email);
+        if(me) state.user = me;
+      }
+      if(stateKey==='materials'){ ensureCoreBooks(); ensureCoreDocs(); }
+      firstLoadCount++;
+      if(firstLoadCount<=total) render(true);
+    }, err=>console.error('Lyssningsfel', docKey, err));
+    unsubscribers.push(unsub);
+  });
+}
+
+/* Fyller automatiskt på saknade standardböcker i den redan sparade listan
+   (t.ex. när en ny instuderingsapp lagts till i mallen) — bara gruppledaren
+   skriver, för att undvika att flera personer sparar samtidigt. */
+async function ensureCoreBooks(){
+  if(!state.user || !state.user.isAdmin) return;
+  const books = state.materials.books || [];
+  if(!books.length) return; // listan är inte gjord redigerbar än — rör inte den
+  const missing = BOOKS_TEMPLATE.filter(t => !books.some(b => b.title === t.title));
+  if(!missing.length) return;
+  const updated = {
+    docs:[...(state.materials.docs||[])],
+    media:[...(state.materials.media||[])],
+    finalVideo: state.materials.finalVideo||'',
+    books:[...books, ...missing.map(t=>({id:uid(), title:t.title, author:t.author, pdfUrl:t.pdfUrl, appUrl:t.appUrl, accessRequests:[]}))]
+  };
+  state.materials = updated;
+  await sSet(K.materials, updated);
+}
+
+/* Samma självläkande princip för "Delade Google-dokument" — t.ex. studieguider
+   som skapas åt gruppen och ska dyka upp (och rättas om länken ändras) utan att
+   någon behöver klicka i något. */
+const CORE_DOCS = [
+  {title:'Network Propaganda - En sammanhängande svensk studieguide till hela boken.', url:'https://docs.google.com/document/d/16QO8LXRsSiyRug9KY8_lJfH19FpHlbHhdl62UqyMWaI/edit'}
+];
+async function ensureCoreDocs(){
+  if(!state.user || !state.user.isAdmin) return;
+  const docs = state.materials.docs || [];
+  if(!docs.length) return; // ingen dokumentlista sparad än — rör inte den
+  let changed = false;
+  const nextDocs = docs.map(d=>{
+    const t = CORE_DOCS.find(x=>x.title===d.title);
+    if(t && d.url!==t.url){ changed = true; return {...d, url:t.url}; }
+    return d;
+  });
+  const missing = CORE_DOCS.filter(t => !docs.some(d => d.title === t.title));
+  if(missing.length){
+    changed = true;
+    missing.forEach(t=>nextDocs.push({id:uid(), title:t.title, url:t.url, addedBy:'Thomas Hedlund Leijon'}));
+  }
+  if(!changed) return;
+  const updated = {
+    docs: nextDocs,
+    media:[...(state.materials.media||[])],
+    finalVideo: state.materials.finalVideo||'',
+    books:[...(state.materials.books||[])]
+  };
+  state.materials = updated;
+  await sSet(K.materials, updated);
+}
+
+
+/* ---------------- tabs ---------------- */
+document.getElementById('tabs').addEventListener('click', e=>{
+  const b = e.target.closest('button[data-tab]');
+  if(!b) return;
+  activeTab = b.dataset.tab;
+  [...document.querySelectorAll('#tabs button')].forEach(x=>x.classList.toggle('active', x===b));
+  render();
+});
+
+function render(quiet){
+  const v = document.getElementById('view');
+  const scrollY = v.scrollTop;
+  if(activeTab==='oversikt') v.innerHTML = viewOversikt();
+  if(activeTab==='uppgift') v.innerHTML = viewUppgift();
+  if(activeTab==='medlemmar') v.innerHTML = viewMedlemmar();
+  if(activeTab==='chatt') v.innerHTML = viewChatt();
+  if(activeTab==='rostning') v.innerHTML = viewRostning();
+  if(activeTab==='uppgifter') v.innerHTML = viewUppgifter();
+  if(activeTab==='kalender') v.innerHTML = viewKalender();
+  if(activeTab==='kontrakt') v.innerHTML = viewKontrakt();
+  if(activeTab==='material') v.innerHTML = viewMaterial();
+  if(activeTab==='forslag') v.innerHTML = viewForslag();
+  attachHandlers();
+  if(activeTab==='chatt'){
+    const log=document.getElementById('chatlog');
+    if(log){ log.scrollTop = quiet ? log.scrollTop : log.scrollHeight; if(quiet) log.scrollTop=log.scrollHeight; }
+  } else { v.scrollTop = scrollY; }
+}
+
+/* ===================== ÖVERSIKT ===================== */
+function viewOversikt(){
+  const approved = state.members.filter(m=>m.status==='approved');
+  const pendingCount = state.members.filter(m=>m.status==='pending').length;
+  const ms = state.milestones;
+  const openTasks = state.tasks.filter(t=>t.status!=='klar').length;
+  const nextMeeting = [...state.meetings].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).find(m=> (m.date+ 'T'+m.time) >= new Date().toISOString().slice(0,16));
+
+  return `
+  <div class="panel">
+    <h2>Välkommen, ${esc(state.user.name.split(' ')[0])} <span class="tip-icon" data-tip="Översikten samlar det viktigaste: deadlines, öppna uppgifter och nästa möte, så ingen behöver leta i flera flikar.">i</span></h2>
+    <p class="hint">Gruppuppgift: Desinformation — ett hot mot demokratin (SVAP11). Denna sida uppdateras automatiskt när någon i gruppen gör en ändring.</p>
+    <div class="grid2">
+      <div>
+        <h3>Nyckeltal</h3>
+        <table>
+          <tr><td>Godkända medlemmar</td><td><b>${approved.length}</b></td></tr>
+          <tr><td>Väntar på godkännande</td><td>${pendingCount ? `<b style="color:var(--accent-deep)">${pendingCount}</b>` : '0'}</td></tr>
+          <tr><td>Öppna uppgifter</td><td>${openTasks}</td></tr>
+          <tr><td>Nästa möte</td><td>${nextMeeting ? fmtDate(nextMeeting.date)+' kl '+nextMeeting.time : 'Inget inbokat än'}</td></tr>
+        </table>
+      </div>
+      <div>
+        <h3>Sätt sista inskicksdatum ${state.user.isAdmin?'':''} <span class="tip-icon" data-tip="Utifrån inskicksdatumet räknar plattformen automatiskt ut genrep och en slutgiltig-resultat-punkt, med två dagars marginal, så gruppen alltid har tid att förbättra innan inlämning.">i</span></h3>
+        ${state.user.isAdmin ? `
+          <div class="form-row">
+            <label for="ms-deadline">Sista inskicksdatum</label>
+            <input type="date" id="ms-deadline" value="${ms?ms.deadline:''}">
+          </div>
+          <button class="btn small" id="ms-save">Räkna ut tidsplan</button>
+        ` : `<p class="muted">Endast gruppledaren (Thomas) kan ändra inskicksdatumet. Aktuell tidsplan visas nedan.</p>`}
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Tidsplan <span class="tip-icon" data-tip="Kedjan är: Kontrollpunkt 1 → Genrep (kontrollpunkt 2) → två dagars marginal → Slutgiltigt resultat klart → ytterligare två dagars marginal → Inskick.">i</span></h2>
+    ${ms ? `
+    <div class="timeline">
+      <div class="tl-item" data-n="1"><h4>Kontrollpunkt 1 — första avstämning</h4><div class="d">${fmtDate(ms.check1)}</div></div>
+      <div class="tl-item" data-n="2"><h4>Genrep — kontrollpunkt 2, körning av hela arbetet</h4><div class="d">${fmtDate(ms.genrep)}</div></div>
+      <div class="tl-item" data-n="3"><h4>Slutgiltigt resultat klart <span class="tip-icon" data-tip="Två dagar efter genrepet — ger gruppen två dagars marginal att putsa innan inskick.">i</span></h4><div class="d">${fmtDate(ms.finalReady)}</div></div>
+      <div class="tl-item" data-n="4"><h4>Inskick — sista dagen</h4><div class="d">${fmtDate(ms.deadline)}</div></div>
+    </div>` : `<p class="empty">Ingen tidsplan är satt än. ${state.user.isAdmin?'Ange sista inskicksdatum ovan.':'Be Thomas ange sista inskicksdatum.'}</p>`}
+  </div>
+
+  <div class="panel">
+    <h3>Så använder ni plattformen</h3>
+    <ul>
+      <li><b>Medlemmar</b> — se vilka som är med, och (om du är gruppledare) godkänn nya.</li>
+      <li><b>Chatt</b> — snabb, öppen diskussion som alla ser live. Använd möten för beslut, chatten för allt däremellan.</li>
+      <li><b>Röstning</b> — när gruppen behöver bestämma något, skapa en omröstning istället för att räkna röster i chatten.</li>
+      <li><b>Arbetsfördelning</b> — varje uppgift har en ansvarig och ett eget deadline.</li>
+      <li><b>Möten &amp; kalender</b> — markera när du kan, plattformen räknar ut när alla kan mötas.</li>
+      <li><b>Gruppkontrakt</b> — läs, diskutera och godkänn spelreglerna tillsammans.</li>
+    </ul>
+  </div>`;
+}
+
+/* ===================== MEDLEMMAR ===================== */
+/* ===================== UPPGIFTEN (inlagt från de bifogade underlagen) ===================== */
+const ASSIGNMENT_QUESTIONS = [
+  'Vad handlade desinformationen om?',
+  'Vem eller vilka spred den, och hur?',
+  'Vilken publik riktade den sig till, och vad var syftet?',
+  'Vad blev effekten? (t.ex. opinion, val, våld, tillit)',
+  'Hur är detta ett hot mot demokratin? (använd begrepp från kursen, t.ex. Dahl, Levitsky & Ziblatt, Farkas, Benkler)'
+];
+const ASSESSMENT_CRITERIA = [
+  {area:'Relevans & faktagrund', desc:'Har valt ett relevant fall och beskriver det korrekt, med källhänvisningar och källkritik.'},
+  {area:'Analysförmåga', desc:'Tillämpar begrepp eller teorier från kursen på ett sätt som visar förståelse för demokratins sårbarhet.'},
+  {area:'Koppling till demokrati', desc:'Visar hur desinformationen utgör ett hot mot demokratin (t.ex. tillit, val, institutioner, yttrandefrihet).'},
+  {area:'Presentation och samarbete', desc:'Presentationen är begriplig och strukturerad, och ni visar att alla i gruppen bidragit.'},
+  {area:'Teknisk genomförbarhet', desc:'Ljud och bild fungerar, längden hålls (max 8 minuter), och filen kan spelas upp i Canvas.'}
+];
+const CASE_OPTIONS = [
+  {rank:1, name:'Trumps "Big Lie" och valet 2020', score:'9,7/10', note:'Tydligt avgränsat, enorm dokumentation, officiella primärkällor och ett konkret händelseförlopp fram till 6 januari. Rekommenderat val.'},
+  {rank:2, name:'LVU-kampanjen mot Sverige', score:'9,1/10', note:'Exceptionellt bra svenskt case. Myndigheten för psykologiskt försvar har en särskild rapport och regeringen har dokumenterat kampanjen.'},
+  {rank:3, name:'Rysk desinformation om Ukraina', score:'8,7/10', note:'Mycket stor källbas, men måste avgränsas till en specifik narrativ eller kampanj för att inte bli för brett.'},
+  {rank:4, name:'Påverkanskampanjer kring Sveriges NATO-anslutning', score:'8,3/10', note:'Relevant och svenskt, men vissa effekter är svårare att kausalt isolera.'},
+  {rank:5, name:'QAnon', score:'8,0/10', note:'Väl dokumenterat och tydlig koppling till 6 januari, men kräver en konkret episod eller mekanism.'},
+  {rank:6, name:'Deepfakes i politiken', score:'7,7/10', note:'Bra visuellt case, men empiriska effekter är svårare att belägga — ett konkret val (t.ex. Slovakien 2023) krävs.'},
+  {rank:7, name:'Desinformation inför val – jämförande case', score:'7,4/10', note:'Massiv litteratur, men för brett tills det görs specifikt (ett val, en aktör, en narrativ).'},
+  {rank:8, name:'Konspirationer kring vaccin och covid-19', score:'7,0/10', note:'Mycket forskning, men kräver ett extra steg från folkhälsomisinformation till ett specifikt demokratiskt hot.'},
+  {rank:9, name:'Klimatförnekelse- och fördröjningskampanjer', score:'6,8/10', note:'Stor akademisk litteratur, men svårare att göra till ett enda konkret efter-2018-case på åtta minuter.'}
+];
+const ROLE_TEMPLATE = [
+  {person:'Thomas Hedlund Leijon', role:'Samordning + demokratiteori', task:'Formulera gemensam tes. Sammanfoga Dahl, Levitsky & Ziblatt, Benkler och Farkas med empirin. Kontrollera att varje påstående i analysen faktiskt stöds av källor.', delivers:'Tes, teoriram, slutlig faktakontroll, ca 75 sek muntligt.'},
+  {person:'Izabella Hietamäki', role:'Vad handlade desinformationen om?', task:'Kartlägg 3–4 centrala falska narrativ. Skilj på påståenden och vad officiella källor faktiskt fann.', delivers:'Kort faktaruta + källor + ca 70 sek muntligt.'},
+  {person:'Pontus Sahlqvist', role:'Aktörer, kanaler och spridning', task:'Kartlägg vem som spred och förstärkte narrativen: politiska aktörer, jurister, medier, sociala plattformar och nätverk.', delivers:'Spridningskedja/figur + ca 70 sek muntligt.'},
+  {person:'Åsa Thyrén Lind', role:'Målgrupp, syfte och effekter', task:'Analysera vilka grupper som mobiliserades, vilket politiskt syfte narrativen fyllde och vilka effekter som kan beläggas.', delivers:'Effekttabell + källor + ca 70 sek muntligt.'},
+  {person:'Sam Yoo', role:'Visuellt narrativ + teknisk produktion', task:'Bygg den gemensamma visuella tidslinjen, välj högst 5–6 bilder/klipp, kontrollera bildkällor, redigera och exportera.', delivers:'Slides/video, teknisk QA, ca 60–70 sek muntligt.'}
+];
+const WORKFLOW_STEPS = [
+  {id:'steg1', title:'Frys caset och tesen', desc:'Bestäm exakt formulering av case och tes. Undvik att göra en hel historik.'},
+  {id:'steg2', title:'Frys en gemensam källstandard', desc:'Primärkällor och officiella utredningar först, peer review därefter, nyhetsmedier bara för illustration/tidslinje.'},
+  {id:'steg3', title:'Arbeta parallellt', desc:'Var och en använder sin arbetsström och lämnar kärnfakta, 3–5 starka källor och två analytiska slutsatser.'},
+  {id:'steg4', title:'Bygg en gemensam evidenstabell', desc:'Se avsnittet "Gemensam evidenstabell" nedan — fyll i den tillsammans.'},
+  {id:'steg5', title:'Skriv manus (900–1 000 ord)', desc:'Motsvarar ca 7–8 minuter. Ta bort allt som inte behövs för att besvara uppgiftens fem huvudfrågor.'},
+  {id:'steg6', title:'Skapa visuellt stöd', desc:'Tidslinje, spridningskedja och en slutbild med de demokratiska mekanismerna. Undvik texttunga slides.'},
+  {id:'steg7', title:'Källkritisk kontroll', desc:'Skilj belagda effekter från tolkningar. Skriv "bidrog till" eller "sammanföll med" när kausaliteten inte är stark.'},
+  {id:'steg8', title:'Teknisk slutkontroll', desc:'Sikta på 7:20–7:40 minuter. Kontrollera ljud, läsbarhet, filformat och att videon går att spela innan uppladdning.'}
+];
+const VIDEO_DISPOSITION = [
+  {t:'0:00–0:35', del:'Inledning', innehall:'Vad är caset och varför är det demokratiskt relevant? Presentera huvudtesen.'},
+  {t:'0:35–1:50', del:'Vad var desinformationen?', innehall:'Visa 3–4 centrala påståenden och slå fast vad verifierade källor visade.'},
+  {t:'1:50–3:05', del:'Vem spred den och hur?', innehall:'Aktörer, medier, plattformar och förstärkning.'},
+  {t:'3:05–4:05', del:'Publik och syfte', innehall:'Vilka mobiliserades och vad tjänade delegitimeringen till politiskt?'},
+  {t:'4:05–5:30', del:'Effekter', innehall:'Tillit, valarbetare, institutionspress, certifiering och 6 januari.'},
+  {t:'5:30–7:15', del:'Demokratianalys', innehall:'Knyt till Dahl, Levitsky & Ziblatt, Benkler och Farkas.'},
+  {t:'7:15–7:45', del:'Slutsats', innehall:'Återvänd till tesen — vad lär caset oss om demokratisk sårbarhet?'},
+  {t:'7:45–8:00', del:'Marginal', innehall:'Avslutningsbild/källor. Planera inte tal ända till 8:00.'}
+];
+const SOURCE_MODEL = [
+  {typ:'Primärkällor/officiella dokument', ex:'Kongressutredning, domstolsbeslut, valmyndigheter, myndighetsrapporter.', hur:'Hög tillförlitlighet för vad myndigheten faktiskt beslutat eller funnit.'},
+  {typ:'Peer review', ex:'Vetenskapliga artiklar om spridning, polarisering, beteende och effekter.', hur:'Hög för avgränsade forskningsfrågor — kontrollera studiedesign.'},
+  {typ:'Forskningsinstitut/universitet', ex:'Stanford/EIP, International IDEA, Brookings m.fl.', hur:'Bra för syntes och kartläggning — notera institutionell position.'},
+  {typ:'Civilsamhälle/faktagranskning', ex:'Brennan Center, ADL, EU DisinfoLab m.fl.', hur:'Ofta detaljerad — använd med avsändarkritik och triangulera.'},
+  {typ:'Nyhetsmedier', ex:'Etablerade medier och videoklipp.', hur:'Bra för tidslinje/visuellt — sällan ensam källa för kausala slutsatser.'}
+];
+const SOURCE_CHECKLIST = [
+  'Vem är avsändaren och vilket mandat/intresse har den?',
+  'Är detta primärkälla, sekundärkälla eller kommentar?',
+  'Finns metod, data eller underlag redovisat?',
+  'Skiljer källan mellan misinformation, disinformation, propaganda och politisk åsikt?',
+  'Stödjer källan verkligen det påstående vi använder den för?',
+  'Finns en oberoende källa som kan triangulera samma uppgift?',
+  'Är effekten observerad, självrapporterad, statistiskt skattad eller bara antagen?',
+  'Är materialet aktuellt för den tidsperiod vi analyserar?'
+];
+const REPORT_TEMPLATE = [
+  'Gemensamt caseval och hur gruppen avgränsade frågan.',
+  'Hur researchen delades upp och vilka källtyper som användes.',
+  'Vad var och en av gruppmedlemmarna konkret producerade.',
+  'Hur materialet samordnades till manus, analys och visuellt stöd.',
+  'Hur gruppen kvalitetssäkrade källor, tidsgräns och teknisk funktion.'
+];
+const SOURCE_BANK = [
+  {cat:'Big Lie och USA-valet 2020 — kärnkällor', items:[
+    {t:'U.S. House Select Committee – Final Report on the January 6 Attack', d:'Officiell kongressutredning; central primärkälla.', u:'https://www.govinfo.gov/content/pkg/GPO-J6-REPORT/pdf/GPO-J6-REPORT.pdf'},
+    {t:'Election Integrity Partnership – The Long Fuse', d:'Systematisk kartläggning av valrelaterad misinformation/desinformation.', u:'https://www.eipartnership.net/report'},
+    {t:'Election Integrity Partnership – 2020 archive', d:'Arkiv med löpande analyser av narrativ och spridningsmönster.', u:'https://www.eipartnership.net/2020'},
+    {t:'Hoover Institution – Lost, Not Stolen', d:'Konservativt författad genomgång av 64 post-election lawsuits.', u:'https://www.hoover.org/research/lost-not-stolen-conservative-case-trump-lost-and-biden-won-2020-presidential-election'},
+    {t:'Brennan Center – Lessons for Our Elections from the January 6 Hearings', d:'Binder samman Big Lie med institutionell press och valadministration.', u:'https://www.brennancenter.org/our-work/research-reports/lessons-our-elections-january-6-hearings'},
+    {t:'Brennan Center – January 6 Hearings and the Big Lie’s Ongoing Damage to Democracy', d:'Hur valförnekelsen fortsatte påverka valinstitutioner och valarbetare.', u:'https://www.brennancenter.org/our-work/analysis-opinion/january-6-hearings-and-big-lies-ongoing-damage-democracy'},
+    {t:'Brennan Center – Election Misinformation', d:'Samlad forsknings- och policyportal om valmisinformation.', u:'https://www.brennancenter.org/election-misinformation'},
+    {t:'Brennan Center – Information Gaps and Misinformation in the 2022 Elections', d:'', u:'https://www.brennancenter.org/our-work/research-reports/information-gaps-and-misinformation-2022-elections'},
+    {t:'Stanford – Sleuthing for misinformation about voting', d:'Pedagogisk ingång till EIP:s metod och konkreta fall.', u:'https://news.stanford.edu/stories/2020/11/sleuthing-misinformation-voting'},
+    {t:'Stanford FSI – Free, Fair and Healthy Elections in 2020', d:'Forskningsnav med material om valintegritet och misinformation.', u:'https://fsi.stanford.edu/election-2020'}
+  ]},
+  {cat:'LVU-kampanjen mot Sverige', items:[
+    {t:'Myndigheten för psykologiskt försvar – The LVU Campaign', d:'Den viktigaste specialstudien: kronologi, narrativanalys, spridning.', u:'https://mpf.se/psychological-defence-agency/publications/archive/2023-04-28-the-lvu-campaign'},
+    {t:'Regeringen – Disinformation campaign against Swedish public authorities', d:'Officiell svensk dokumentation av kampanjen.', u:'https://www.government.se/articles/2022/02/disinformation-campaign-against-swedish-public-authorities-regarding-social-services/'},
+    {t:'Swedish Institute – Sweden’s image in the wake of Quran burnings and the LVU campaign', d:'Analyserar internationell Sverigebild och tillit.', u:'https://si.se/app/uploads/2024/07/sweden-image-report_swedens-image-in-the-wake-of-quran-burnings-and-the-lvu-campaign.pdf'},
+    {t:'Government Offices – National strategy against violent extremism and terrorism', d:'Hur LVU-kampanjens konsekvenser hanteras i svensk policy.', u:'https://www.government.se/contentassets/524b35ec9cdd4e30a501c6b7d9cbd694/national-strategy-against-violent-extremism-and-terrorism--prevent-avert-protect-and-manage-government-communication-20232456.pdf'}
+  ]},
+  {cat:'Rysk desinformation om Ukraina', items:[
+    {t:'EUvsDisinfo – All roads lead to Ukraine', d:'Översikt över centrala pro-Kreml-narrativ inför invasionen.', u:'https://euvsdisinfo.eu/all-roads-lead-to-ukraine-how-russia-uses-disinformation-to-support-its-efforts-on-the-ground/'},
+    {t:'EUvsDisinfo – Research archive', d:'Stor källsamling om pro-Kreml-desinformation.', u:'https://euvsdisinfo.eu/research/'},
+    {t:'EUvsDisinfo – 2022 disinfo research highlights', d:'Forskningsläget kring informationsmanipulation under krigets första år.', u:'https://euvsdisinfo.eu/2022-disinfo-research-highlights/'},
+    {t:'EU DisinfoLab – Doppelganger', d:'Dokumenterar en rysk operation med klonade mediesajter.', u:'https://www.disinfo.eu/doppelganger'}
+  ]},
+  {cat:'Sveriges NATO-anslutning och informationspåverkan', items:[
+    {t:'Swedish Institute – Sweden’s image (Quran burnings/LVU)', d:'Samspelet mellan Sverigebild, informationspåverkan och NATO-processen.', u:'https://si.se/app/uploads/2024/07/sweden-image-report_swedens-image-in-the-wake-of-quran-burnings-and-the-lvu-campaign.pdf'},
+    {t:'EUvsDisinfo – Research archive', d:'Sök särskilt på Sverige, NATO och pro-Kreml-narrativ.', u:'https://euvsdisinfo.eu/research/'},
+    {t:'EU DisinfoLab – Doppelganger', d:'Jämförelse för ryska metoder för medieimitation i Europa.', u:'https://www.disinfo.eu/doppelganger'},
+    {t:'Myndigheten för psykologiskt försvar – publications', d:'Utgångspunkt för svenska rapporter om informationspåverkan.', u:'https://mpf.se/psychological-defence-agency/publications'}
+  ]},
+  {cat:'QAnon', items:[
+    {t:'Frontiers in Sociology – Storm the Capitol', d:'Peer review-studie: politiskt tal, QAnon-hashtags och mobilisering.', u:'https://www.frontiersin.org/journals/sociology/articles/10.3389/fsoc.2022.876070/full'},
+    {t:'PMC – Storm the Capitol (open access)', d:'Samma studie, öppen tillgång.', u:'https://pmc.ncbi.nlm.nih.gov/articles/PMC9160324/'},
+    {t:'ADL – QAnon backgrounder', d:'Bakgrund, ideologi, spridning och koppling till 6 januari.', u:'https://www.adl.org/resources/backgrounder/qanon'},
+    {t:'ADL – 2021 Far-Right Conferences', d:'Hur QAnon flätades samman med andra extremistiska miljöer.', u:'https://www.adl.org/resources/report/2021-far-right-conferences-qanon-and-other-extremist-ideologies-dominate-events'},
+    {t:'ADL – QAnon’s Antisemitism and What Comes Next', d:'Analys av konspiratoriska narrativ och syndabockar.', u:'https://dc.adl.org/resources/report/qanons-antisemitism-and-what-comes-next'}
+  ]},
+  {cat:'Deepfakes i politiken', items:[
+    {t:'Brookings – The impact of generative AI in a global election year', d:'Konkret Slovakien-case med pre-election deepfake audio.', u:'https://www.brookings.edu/articles/the-impact-of-generative-ai-in-a-global-election-year/'},
+    {t:'European Political Science – On the way to deep fake democracy?', d:'Peer review-studie om deepfakes i valkampanjer 2023.', u:'https://link.springer.com/article/10.1057/s41304-024-00482-9'},
+    {t:'International IDEA – Challenges for electoral officials', d:'AI, deepfakes, trakasserier och valinstitutionernas sårbarhet.', u:'https://www.idea.int/theme/information-communication-and-technology-electoral-processes/election-officials-challenges-information-environment-around-elections'},
+    {t:'International IDEA – Protecting Elections in the Face of Online Malign Threats', d:'Jämför flera val 2022–2023, tar upp deepfake-audio i Slovakien.', u:'https://www.idea.int/news/protecting-elections-face-online-malign-threats'},
+    {t:'International IDEA – The Election Year 2024 and Tech Policy around the World', d:'Bred jämförelse av AI, deepfakes och valintegritet.', u:'https://www.idea.int/publications/catalogue/html/election-year-2024-and-tech-policy-around-world-what-lessons-european'},
+    {t:'Brookings – ...we’re still working in the dark', d:'Källkritisk motvikt: varnar för att överskatta AI:s valpåverkan.', u:'https://www.brookings.edu/articles/when-it-comes-to-understanding-ais-impact-on-elections-were-still-working-in-the-dark/'},
+    {t:'Brookings – What role is AI playing in election disinformation?', d:'Kort forskningsöversikt om begränsningar i evidensen.', u:'https://www.brookings.edu/articles/what-role-is-ai-playing-in-election-disinformation/'},
+    {t:'International IDEA – Safeguarding Democracy', d:'Nyare syntes om val, informationsintegritet och AI.', u:'https://www.idea.int/publications/catalogue/html/safeguarding-democracy-eu-development-nexus-elections-information'}
+  ]},
+  {cat:'Bredare desinformation inför val', items:[
+    {t:'International IDEA – Protecting Elections in the Face of Online Malign Threats', d:'Internationell översikt med flera konkreta valfall.', u:'https://www.idea.int/news/protecting-elections-face-online-malign-threats'},
+    {t:'International IDEA – Challenges for electoral officials', d:'Hot mot institutioner och tjänstemän som administrerar val.', u:'https://www.idea.int/theme/information-communication-and-technology-electoral-processes/election-officials-challenges-information-environment-around-elections'},
+    {t:'Brennan Center – Election Misinformation', d:'Stor resursbank om amerikansk valmisinformation.', u:'https://www.brennancenter.org/election-misinformation'},
+    {t:'Election Integrity Partnership – The Long Fuse', d:'En av de mest detaljerade studierna av ett enskilt valinformationssystem.', u:'https://www.eipartnership.net/report'}
+  ]},
+  {cat:'Vaccin- och covid-19-konspirationer', items:[
+    {t:'WHO – Combatting misinformation online', d:'Officiell WHO-ingång till covid-misinformation.', u:'https://www.who.int/teams/digital-health-and-innovation/digital-channels/combatting-misinformation-online'},
+    {t:'PMC – Misinformation About COVID-19 Vaccines on Social Media', d:'Systematisk/rapid review av forskning om misinformation.', u:'https://pmc.ncbi.nlm.nih.gov/articles/PMC9359307/'},
+    {t:'BMJ – Behavioural interventions to reduce vaccine hesitancy', d:'Forskningsbaserad syntes av mekanismer och motåtgärder.', u:'https://www.bmj.com/content/384/bmj-2023-076542'},
+    {t:'ScienceDirect – COVID-19 Vaccine Hesitancy on Social Media', d:'Stort dataset och analys av antivaccin-narrativ på Twitter.', u:'https://www.sciencedirect.com/org/science/article/pii/S2369296021000685'},
+    {t:'Human Vaccines & Immunotherapeutics – The COVID-19 vaccine social media infodemic', d:'Analys av polariserad vaccindiskussion.', u:'https://www.tandfonline.com/doi/full/10.1080/21645515.2021.1912551'}
+  ]},
+  {cat:'Klimatförnekelse och klimatfördröjning', items:[
+    {t:'Nature Human Behaviour – Psychological inoculation strategies...', d:'Stor preregistrerad experimentell studie i 12 länder.', u:'https://www.nature.com/articles/s41562-023-01736-0'},
+    {t:'npj Climate Action – Do fossil fuel firms reframe online communication?', d:'Data-driven studie om reframing från fossilindustrin.', u:'https://www.nature.com/articles/s44168-023-00086-x'},
+    {t:'Climate Action Against Disinformation – Deny, Deceive, Delay', d:'Rapport om klimatdesinformation kring COP26.', u:'https://caad.info/analysis/reports/deny-deceive-delay-documenting-and-responding-to-climate-disinformation-at-cop26-and-beyond/'}
+  ]},
+  {cat:'Övergripande demokrati, AI och informationsintegritet', items:[
+    {t:'International IDEA – The Election Year 2024 and Tech Policy around the World', d:'Jämförande policy- och demokratiperspektiv.', u:'https://www.idea.int/publications/catalogue/html/election-year-2024-and-tech-policy-around-world-what-lessons-european'},
+    {t:'International IDEA – Safeguarding Democracy', d:'Informationsintegritet som förutsättning för tillit och deltagande.', u:'https://www.idea.int/publications/catalogue/html/safeguarding-democracy-eu-development-nexus-elections-information'},
+    {t:'Brookings – AI can strengthen U.S. democracy—and weaken it', d:'Analys av AI, polarisering och demokratiska risker.', u:'https://www.brookings.edu/articles/ai-can-strengthen-u-s-democracy-and-weaken-it/'}
+  ]}
+];
+const CERTAINTY_OPTIONS = ['Hög','Medel','Låg'];
+const SOURCE_TYPE_OPTIONS = ['Primärkälla/officiellt dokument','Peer review','Forskningsinstitut','Civilsamhälle/faktagranskning','Nyhetsmedia'];
+
+function viewUppgift(){
+  const wf = state.workflow || {};
+  const doneCount = WORKFLOW_STEPS.filter(s=>wf[s.id]).length;
+  return `
+  <div class="panel">
+    <h2>Uppgiften — Desinformation som hot mot demokratin <span class="tip-icon" data-tip="Det här är själva SVAP11-uppgiften och gruppens forskningsunderlag, samlat på ett ställe så alla jobbar mot samma mål.">i</span></h2>
+    <p class="hint">Syfte: tillämpa kursens begrepp på ett verkligt fall, reflektera kring demokratins sårbarhet, och samarbeta i ett digitalt format. Video max 8 minuter, laddas upp i Canvas tillsammans med en redogörelse på max 500 ord om samarbetet.</p>
+    <h3>Fem frågor presentationen måste besvara</h3>
+    <ul>${ASSIGNMENT_QUESTIONS.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+    <h3>Bedömningskriterier (G/U)</h3>
+    <table>
+      <tr><th>Område</th><th>För godkänt krävs</th></tr>
+      ${ASSESSMENT_CRITERIA.map(c=>`<tr><td><b>${esc(c.area)}</b></td><td>${esc(c.desc)}</td></tr>`).join('')}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Caseval <span class="tip-icon" data-tip="Rankingen bygger på källtillgång, demokratikoppling, belägg för effekter, avgränsningsbarhet, teoretisk användbarhet och möjlighet till arbetsdelning.">i</span></h2>
+    <p class="hint">Rekommendation: <b>Trumps "Big Lie" och valet 2020</b> — starkast källäge och tydligast demokratisk effekt. LVU-kampanjen är ett starkt andrahandsval med svensk kontext.</p>
+    <table>
+      <tr><th>#</th><th>Case</th><th>Poäng</th><th>Motivering</th></tr>
+      ${CASE_OPTIONS.map(c=>`<tr><td>${c.rank}</td><td><b>${esc(c.name)}</b></td><td>${esc(c.score)}</td><td style="font-size:13px;">${esc(c.note)}</td></tr>`).join('')}
+    </table>
+    <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line);">
+      <h3>Gruppens val</h3>
+      ${state.assignment.selectedCase
+        ? `<p>Gruppen har valt: <b>${esc(state.assignment.selectedCase)}</b></p>`
+        : `<p class="empty">Inget case är valt ännu.</p>`}
+      ${state.user.isAdmin ? `
+        <div class="form-row" style="max-width:420px;">
+          <label for="case-select">Sätt gruppens val (gruppledare)</label>
+          <select id="case-select">
+            <option value="">— välj —</option>
+            ${CASE_OPTIONS.map(c=>`<option value="${esc(c.name)}" ${state.assignment.selectedCase===c.name?'selected':''}>${esc(c.name)}</option>`).join('')}
+          </select>
+        </div>
+        <button class="btn small" id="case-save">Spara caseval</button>
+      ` : ''}
+      <button class="btn small secondary" id="case-poll" style="margin-left:8px;">Skapa omröstning om caseval istället</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Arbetsfördelning på personroller <span class="tip-icon" data-tip="Denna tabell och fliken 'Arbetsfördelning' visar samma data — ändrar du här ändras det också där, och tvärtom. Vem som helst kan lägga till, redigera och ändra ordning.">i</span></h2>
+    ${state.tasks.length ? `
+      <table>
+        <tr><th></th><th>Person</th><th>Huvudansvar</th><th>Exakt uppgift</th><th>Levererar</th><th></th></tr>
+        ${[...state.tasks].sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt)).map(t=>`
+          <tr>
+            <td style="white-space:nowrap;">
+              <button class="btn small secondary" data-role-up="${t.id}" title="Flytta upp" style="padding:2px 7px;">▲</button>
+              <button class="btn small secondary" data-role-down="${t.id}" title="Flytta ner" style="padding:2px 7px;">▼</button>
+            </td>
+            <td><input type="text" value="${esc(t.assignee||'')}" data-role-edit="${t.id}|assignee" style="width:130px;border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px;font-size:13.5px;"></td>
+            <td><input type="text" value="${esc(t.title||'')}" data-role-edit="${t.id}|title" style="width:140px;border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px;font-size:13.5px;"></td>
+            <td><textarea data-role-edit="${t.id}|desc" style="width:100%;min-width:180px;border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px;font-size:13px;" rows="2">${esc(t.desc||'')}</textarea></td>
+            <td><input type="text" value="${esc(t.delivers||'')}" data-role-edit="${t.id}|delivers" style="width:160px;border:1px solid var(--line);border-radius:var(--radius);padding:4px 6px;font-size:13px;"></td>
+            <td><button class="btn small secondary" data-role-delete="${t.id}">Ta bort</button></td>
+          </tr>`).join('')}
+      </table>
+      <button class="btn small" id="role-add-row" style="margin-top:12px;">+ Lägg till rad</button>
+    ` : `
+      <table>
+        <tr><th>Person</th><th>Huvudansvar</th><th>Exakt uppgift</th><th>Levererar</th></tr>
+        ${ROLE_TEMPLATE.map(r=>`<tr><td><b>${esc(r.person)}</b></td><td>${esc(r.role)}</td><td style="font-size:13px;">${esc(r.task)}</td><td style="font-size:13px;">${esc(r.delivers)}</td></tr>`).join('')}
+      </table>
+      <p class="hint" style="margin-top:10px;">Detta är bara ett exempelförslag ännu. Klicka nedan för att göra raderna redigerbara och kopplade till "Arbetsfördelning" — eller lägg till egna rader direkt.</p>
+      <button class="btn small" id="tasks-from-template" style="margin-top:4px;">Skapa dessa fem som redigerbara uppgifter</button>
+    `}
+  </div>
+
+  <div class="panel">
+    <h2>Gemensamt körschema <span class="tip-icon" data-tip="Bocka av tillsammans — alla ser samma status live.">i</span> <span class="muted" style="font-family:var(--sans);font-size:13px;">${doneCount} av ${WORKFLOW_STEPS.length} klara</span></h2>
+    ${WORKFLOW_STEPS.map((s,i)=>`
+      <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);">
+        <input type="checkbox" data-workflow="${s.id}" ${wf[s.id]?'checked':''} style="margin-top:4px;">
+        <div>
+          <div style="font-weight:500;${wf[s.id]?'text-decoration:line-through;color:var(--ink-soft);':''}">${i+1}. ${esc(s.title)}</div>
+          <div class="muted">${esc(s.desc)}</div>
+        </div>
+      </div>`).join('')}
+  </div>
+
+  <div class="panel">
+    <h2>Förslag på disposition (8 minuter)</h2>
+    <table>
+      <tr><th>Tid</th><th>Del</th><th>Innehåll</th></tr>
+      ${VIDEO_DISPOSITION.map(v=>`<tr><td style="white-space:nowrap;">${esc(v.t)}</td><td><b>${esc(v.del)}</b></td><td style="font-size:13px;">${esc(v.innehall)}</td></tr>`).join('')}
+    </table>
+  </div>
+
+  <div class="panel">
+    <h2>Källkritisk arbetsmodell</h2>
+    <table>
+      <tr><th>Källtyp</th><th>Exempel</th><th>Hur den bör användas</th></tr>
+      ${SOURCE_MODEL.map(s=>`<tr><td><b>${esc(s.typ)}</b></td><td style="font-size:13px;">${esc(s.ex)}</td><td style="font-size:13px;">${esc(s.hur)}</td></tr>`).join('')}
+    </table>
+    <h3 style="margin-top:16px;">Snabbcheck för källor</h3>
+    <ul>${SOURCE_CHECKLIST.map(q=>`<li>${esc(q)}</li>`).join('')}</ul>
+  </div>
+
+  <div class="panel">
+    <h2>Källbank <span class="tip-icon" data-tip="Ordnad per case. Börja med kärnkällorna för det case ni väljer.">i</span></h2>
+    ${SOURCE_BANK.map((cat,ci)=>`
+      <details class="contract-sec" data-persist-key="sourcebank-${ci}">
+        <summary>${esc(cat.cat)} <span class="muted" style="font-family:var(--sans);font-size:12px;">${cat.items.length} källor</span></summary>
+        <div class="contract-body">
+          <ul>${cat.items.map(it=>`<li><a href="${esc(it.u)}" target="_blank" rel="noopener">${esc(it.t)}</a>${it.d?' — '+esc(it.d):''}</li>`).join('')}</ul>
+        </div>
+      </details>`).join('')}
+  </div>
+
+  <div class="panel">
+    <h2>Gemensam evidenstabell <span class="tip-icon" data-tip="Bilaga B ur underlaget. Fyll i tillsammans — en rad per centralt påstående ni bygger analysen på.">i</span></h2>
+    <p class="hint">Ett bra riktmärke: minst en rad per centralt påstående i manuset, med källa och hur säker kopplingen till demokrati är.</p>
+    <div class="two-col-form">
+      <div class="form-row"><label for="ev-claim">Påstående</label><input id="ev-claim" type="text" placeholder="Vad hävdas?"></div>
+      <div class="form-row"><label for="ev-source">Källa (namn)</label><input id="ev-source" type="text" placeholder="t.ex. Brennan Center"></div>
+    </div>
+    <div class="two-col-form">
+      <div class="form-row"><label for="ev-link">Länk (valfritt)</label><input id="ev-link" type="text" placeholder="https://..."></div>
+      <div class="form-row"><label for="ev-type">Källtyp</label>
+        <select id="ev-type">${SOURCE_TYPE_OPTIONS.map(o=>`<option>${esc(o)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="two-col-form">
+      <div class="form-row"><label for="ev-shows">Vad källan visar</label><input id="ev-shows" type="text"></div>
+      <div class="form-row"><label for="ev-dim">Demokratisk dimension</label><input id="ev-dim" type="text" placeholder="t.ex. vallegitimitet, tillit"></div>
+    </div>
+    <div class="form-row" style="max-width:200px;"><label for="ev-cert">Säkerhet</label>
+      <select id="ev-cert">${CERTAINTY_OPTIONS.map(o=>`<option>${esc(o)}</option>`).join('')}</select>
+    </div>
+    <button class="btn small" id="ev-add">Lägg till rad</button>
+
+    ${state.evidence.length ? `
+    <table style="margin-top:16px;">
+      <tr><th>Påstående</th><th>Källa</th><th>Typ</th><th>Visar</th><th>Dimension</th><th>Säkerhet</th><th></th></tr>
+      ${state.evidence.map(r=>`<tr>
+        <td>${esc(r.claim)}</td>
+        <td>${r.link?`<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.source)}</a>`:esc(r.source)}</td>
+        <td style="font-size:12.5px;">${esc(r.sourceType)}</td>
+        <td style="font-size:13px;">${esc(r.shows)}</td>
+        <td style="font-size:13px;">${esc(r.dim)}</td>
+        <td>${esc(r.certainty)}</td>
+        <td>${(state.user.isAdmin || r.addedBy===state.user.name) ? `<button class="btn small secondary" data-ev-delete="${r.id}">Ta bort</button>` : ''}</td>
+      </tr>`).join('')}
+    </table>` : `<p class="empty" style="margin-top:12px;">Inga rader tillagda ännu.</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Mall för 500-ordsredogörelsen</h2>
+    <p class="hint">Skriv den först när filmen är klar, så den beskriver det faktiska arbetet.</p>
+    <ol>${REPORT_TEMPLATE.map(r=>`<li>${esc(r)}</li>`).join('')}</ol>
+  </div>`;
+}
+
+function viewMedlemmar(){
+  const approved = state.members.filter(m=>m.status==='approved');
+  const pending = state.members.filter(m=>m.status==='pending');
+  return `
+  <div class="panel">
+    <h2>Medlemmar <span class="tip-icon" data-tip="Alla som skrivit in namn och e-post hamnar här. Gruppledaren godkänner nya medlemmar innan de kommer in på plattformen.">i</span></h2>
+    <table>
+      <tr><th>Namn</th><th>E‑post</th><th>Roll</th><th>Med sedan</th></tr>
+      ${approved.map(m=>`<tr>
+        <td>${esc(m.name)}</td><td>${esc(m.email)}</td>
+        <td>${m.isAdmin?'<span class="badge admin">Gruppledare</span>':'<span class="badge approved">Medlem</span>'}</td>
+        <td>${new Date(m.joinedAt).toLocaleDateString('sv-SE')}</td>
+      </tr>`).join('') || `<tr><td colspan="4" class="empty">Inga godkända medlemmar än.</td></tr>`}
+    </table>
+  </div>
+
+  ${state.user.isAdmin ? `
+  <div class="panel">
+    <h3>Väntar på godkännande <span class="tip-icon" data-tip="Endast du som gruppledare ser den här listan. Godkänn för att släppa in personen på plattformen, eller neka om det är fel person.">i</span></h3>
+    ${pending.length ? pending.map(m=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
+        <div><b>${esc(m.name)}</b><br><span class="muted">${esc(m.email)}</span></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn small" data-approve="${m.id}">Godkänn</button>
+          <button class="btn small secondary" data-reject="${m.id}">Neka</button>
+        </div>
+      </div>`).join('') : `<p class="empty">Ingen väntar just nu.</p>`}
+  </div>
+
+  <div class="panel">
+    <h3>Lägg till medlem direkt <span class="tip-icon" data-tip="Som gruppledare kan du lägga till en medlem direkt utan att de behöver ansöka själva — de blir godkända omedelbart.">i</span></h3>
+    <div class="two-col-form">
+      <div class="form-row"><label for="add-name">Namn</label><input id="add-name" type="text"></div>
+      <div class="form-row"><label for="add-email">E‑post</label><input id="add-email" type="email"></div>
+    </div>
+    <button class="btn small" id="add-member-btn">Lägg till</button>
+  </div>` : ''}
+  `;
+}
+
+/* ===================== CHATT ===================== */
+function viewChatt(){
+  const threads = [{id:'general', name:'Allmänt'}, ...state.threads];
+  if(!threads.some(t=>t.id===activeThread)) activeThread='general';
+  const threadMsgs = state.chat.filter(m=>(m.threadId||'general')===activeThread);
+  const tagLabel = {beslut:'📌 Beslut', 'nasta-steg':'➡️ Nästa steg'};
+  return `
+  <div class="panel">
+    <h2>Gruppchatt <span class="tip-icon" data-tip="Öppen chatt som alla godkända medlemmar ser live. Skapa flera trådar för olika ämnen, och märk viktiga meddelanden som Beslut eller Nästa steg så de går att sammanställa senare.">i</span></h2>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;">
+      ${threads.map(t=>`<button class="btn small ${t.id===activeThread?'':'secondary'}" data-thread="${esc(t.id)}">${esc(t.name)}</button>`).join('')}
+      <button class="btn small secondary" id="new-thread">+ Ny tråd</button>
+    </div>
+    <div id="chatlog">
+      ${threadMsgs.length ? threadMsgs.map(m=>`
+        <div class="msg ${m.email===state.user.email?'me':''}">
+          <div class="m-head"><b>${esc(m.name)}</b> · ${new Date(m.ts).toLocaleString('sv-SE',{hour:'2-digit',minute:'2-digit',day:'numeric',month:'short'})} ${m.tag?`<span class="badge admin">${tagLabel[m.tag]}</span>`:''}</div>
+          <div class="m-body">${esc(m.text)}</div>
+        </div>`).join('') : `<p class="empty">Inga meddelanden i den här tråden än — skriv det första!</p>`}
+    </div>
+    <div class="chatform">
+      <input type="text" id="chat-input" placeholder="Skriv ett meddelande…" maxlength="600">
+      <select id="chat-tag" style="border:1px solid var(--line-strong);border-radius:var(--radius);font-size:13px;">
+        <option value="">Vanligt</option>
+        <option value="beslut">📌 Beslut</option>
+        <option value="nasta-steg">➡️ Nästa steg</option>
+      </select>
+      <button class="btn" id="chat-send">Skicka</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Sammanställ beslut &amp; nästa steg <span class="tip-icon" data-tip="Ingen AI läser chatten — det här samlar bara ihop de meddelanden ni själva märkt som Beslut eller Nästa steg, från de trådar du väljer.">i</span></h2>
+    <p class="hint">Välj vilka trådar som ska ingå, klicka sedan Skapa sammanställning för att skriva ut/spara som PDF och klistra in i ert Google-dokument.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+      ${threads.map(t=>`<label style="display:flex;align-items:center;gap:5px;font-size:13.5px;border:1px solid var(--line);padding:4px 8px;border-radius:var(--radius);">
+        <input type="checkbox" data-sum-thread="${esc(t.id)}" checked> ${esc(t.name)}
+      </label>`).join('')}
+    </div>
+    <button class="btn small" id="make-chat-summary">Skapa sammanställning</button>
+  </div>`;
+}
+
+function generateChatSummary(){
+  const v = document.getElementById('view');
+  const selected = [...v.querySelectorAll('[data-sum-thread]')].filter(cb=>cb.checked).map(cb=>cb.dataset.sumThread);
+  const threads = [{id:'general', name:'Allmänt'}, ...state.threads];
+  const tagLabel = {beslut:'Beslut', 'nasta-steg':'Nästa steg'};
+  let html = `<h1>Beslut &amp; nästa steg</h1><p class="pc-meta">Sammanställt ${esc(new Date().toLocaleDateString('sv-SE'))} via Vaksam — bygger på meddelanden ni själva märkt i chatten, inte AI-genererat.</p>`;
+  let any = false;
+  threads.filter(t=>selected.includes(t.id)).forEach(t=>{
+    const tagged = state.chat.filter(m=>(m.threadId||'general')===t.id && (m.tag==='beslut'||m.tag==='nasta-steg')).sort((a,b)=>a.ts-b.ts);
+    if(!tagged.length) return;
+    any = true;
+    html += `<h2>${esc(t.name)}</h2><ul>${tagged.map(m=>`<li><b>${esc(tagLabel[m.tag])}:</b> ${esc(m.text)} <span class="pc-meta">— ${esc(m.name)}, ${new Date(m.ts).toLocaleDateString('sv-SE')}</span></li>`).join('')}</ul>`;
+  });
+  if(!any) html += `<p><em>Inga meddelanden är märkta som Beslut eller Nästa steg i de valda trådarna än.</em></p>`;
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+
+/* ===================== MATERIAL & LÄNKAR ===================== */
+const BOOKS_TEMPLATE = [
+  {title:'Democracy and Its Critics', author:'Robert A. Dahl (1989)', pdfUrl:'', appUrl:'https://thomashedlundleijon.github.io/dahl-quiz/'},
+  {title:'How Democracies Die', author:'Levitsky & Ziblatt (2018)', pdfUrl:'', appUrl:'https://thomashedlundleijon.github.io/HowDemocraciesDie-StudyQuiz/'},
+  {title:'Post-Truth, Fake News and Democracy', author:'Farkas & Schou (2020)', pdfUrl:'', appUrl:'https://thomashedlundleijon.github.io/Post-Truth-Democracy-Instuderingsapp-Farkas-Schou-2020-/'},
+  {title:'Network Propaganda', author:'Benkler, Faris & Roberts (2018)', pdfUrl:'https://academic.oup.com/book/26406', appUrl:'https://thomashedlundleijon.github.io/network-propaganda-quiz/'}
+];
+
+function viewMaterial(){
+  const mat = state.materials || {docs:[], media:[], finalVideo:'', books:[]};
+  const books = mat.books || [];
+
+  return `
+  <div class="panel">
+    <h2>Litteratur &amp; instuderingsappar <span class="tip-icon" data-tip="Bokens titel öppnar PDF:en (om en länk är tillagd), 'Instuderingsapp till boken' öppnar övningsappen. OBS: lägg bara in en PDF-länk som är delad enbart med gruppens medlemmar (t.ex. Canvas eller en Drive-mapp delad med era e-postadresser) — aldrig en offentlig länk, eftersom böckerna är upphovsrättsskyddade.">i</span></h2>
+    <details class="contract-sec" data-persist-key="litteratur">
+      <summary>Kursböcker (${books.length || BOOKS_TEMPLATE.length} st)</summary>
+      <div class="contract-body">
+        ${books.length ? `
+          ${books.map(b=>`
+            <div style="padding:12px 0;border-bottom:1px solid var(--line);">
+              <div class="two-col-form">
+                <div class="form-row"><label>Titel</label><input type="text" value="${esc(b.title)}" data-book-edit="${b.id}|title"></div>
+                <div class="form-row"><label>Författare/år</label><input type="text" value="${esc(b.author)}" data-book-edit="${b.id}|author"></div>
+              </div>
+              <div class="two-col-form">
+                <div class="form-row"><label>Länk till PDF (delad enbart med gruppen)</label><input type="text" value="${esc(b.pdfUrl||'')}" placeholder="https://... (Canvas/Drive, ej offentlig)" data-book-edit="${b.id}|pdfUrl"></div>
+                <div class="form-row"><label>Länk till instuderingsapp</label><input type="text" value="${esc(b.appUrl||'')}" data-book-edit="${b.id}|appUrl"></div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                ${b.pdfUrl ? `<a class="btn small secondary" href="${esc(b.pdfUrl)}" target="_blank" rel="noopener">Öppna boken (PDF)</a>` : `<span class="muted">Ingen PDF-länk tillagd än</span>`}
+                ${b.appUrl ? `<a class="btn small secondary" href="${esc(b.appUrl)}" target="_blank" rel="noopener">Instuderingsapp till boken</a>` : ''}
+                <button class="btn small secondary" data-book-delete="${b.id}">Ta bort bok</button>
+              </div>
+              <div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);">
+                <div class="muted" style="margin-bottom:6px;">Vill du läsa boken? Fyll i din e-postadress så lägger Thomas till dig i Drive-mappen.</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                  <input type="email" placeholder="din@e-postadress.se" data-req-email="${b.id}" style="flex:1;min-width:180px;border:1px solid var(--line-strong);border-radius:var(--radius);padding:6px 8px;">
+                  <button class="btn small secondary" data-req-access="${b.id}">Begär tillgång</button>
+                </div>
+                ${(b.accessRequests && b.accessRequests.length) ? `
+                  <div style="margin-top:8px;">
+                    ${b.accessRequests.map(r=>`
+                      <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px;flex-wrap:wrap;gap:6px;">
+                        <span>${esc(r.email)} ${r.granted?'<span class="badge approved">Tillagd i Drive</span>':'<span class="badge pending">Väntar</span>'}</span>
+                        ${state.user.isAdmin ? `<button class="btn small ${r.granted?'secondary':''}" data-req-toggle="${b.id}|${esc(r.email)}">${r.granted?'Markera som ej tillagd':'Markera som tillagd i Drive'}</button>` : ''}
+                      </div>`).join('')}
+                  </div>` : ''}
+              </div>
+            </div>`).join('')}
+          <button class="btn small" id="book-add-row" style="margin-top:10px;">+ Lägg till bok</button>
+        ` : `
+          ${BOOKS_TEMPLATE.map(b=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;padding:10px 0;border-bottom:1px solid var(--line);">
+              <div><b>${esc(b.title)}</b><div class="muted">${esc(b.author)} · ingen PDF-länk tillagd än</div></div>
+              <a class="btn small secondary" href="${esc(b.appUrl)}" target="_blank" rel="noopener">Instuderingsapp till boken</a>
+            </div>`).join('')}
+          <button class="btn small" id="books-from-template" style="margin-top:12px;">Gör listan redigerbar (lägg till PDF-länkar)</button>
+        `}
+      </div>
+    </details>
+  </div>
+
+  <div class="panel">
+    <h2>Genvägar <span class="tip-icon" data-tip="Vanliga länkar till andra tjänster ni redan använder — Vaksam kan inte logga in åt er eller flytta data automatiskt dit.">i</span></h2>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <a class="btn secondary" href="https://www.kau.se/logga-in-till-canvas" target="_blank" rel="noopener">Logga in på Canvas</a>
+      <a class="btn secondary" href="https://www.office.com" target="_blank" rel="noopener">Öppna Microsoft 365</a>
+      <a class="btn secondary" href="https://filmora.wondershare.com/" target="_blank" rel="noopener">Öppna Filmora</a>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Delade Google-dokument <span class="tip-icon" data-tip="Skapa dokumentet i Google Drive, dela det som 'Alla med länken kan redigera', och klistra in länken här så hittar alla det på samma ställe.">i</span></h2>
+    <div class="two-col-form">
+      <div class="form-row"><label for="doc-title">Titel</label><input id="doc-title" type="text" placeholder="t.ex. Manus"></div>
+      <div class="form-row"><label for="doc-url">Länk</label><input id="doc-url" type="text" placeholder="https://docs.google.com/..."></div>
+    </div>
+    <button class="btn small" id="doc-add">Lägg till dokument</button>
+    ${mat.docs.length ? mat.docs.map(d=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
+        <a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>
+        <span class="muted">tillagd av ${esc(d.addedBy)}</span>
+      </div>`).join('') : `<p class="empty" style="margin-top:10px;">Inga dokument tillagda ännu.</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Bild- och videomaterial <span class="tip-icon" data-tip="Ladda upp bilder/klipp till Google Drive eller OneDrive, dela länken, och lägg in den här — Vaksam kan inte lagra själva filerna.">i</span></h2>
+    <div class="two-col-form">
+      <div class="form-row"><label for="media-title">Beskrivning</label><input id="media-title" type="text" placeholder="t.ex. Klipp från kongressutredningen"></div>
+      <div class="form-row"><label for="media-url">Länk</label><input id="media-url" type="text" placeholder="https://drive.google.com/..."></div>
+    </div>
+    <button class="btn small" id="media-add">Lägg till material</button>
+    ${mat.media.length ? mat.media.map(d=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
+        <a href="${esc(d.url)}" target="_blank" rel="noopener">${esc(d.title)}</a>
+        <span class="muted">tillagd av ${esc(d.addedBy)}</span>
+      </div>`).join('') : `<p class="empty" style="margin-top:10px;">Inget material tillagt ännu.</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Färdig video <span class="tip-icon" data-tip="Ladda upp den färdiga filmen till t.ex. YouTube (som olistad), Google Drive eller OneDrive, och klistra in länken här så kan alla i gruppen se den.">i</span></h2>
+    ${mat.finalVideo ? `<p><a class="btn" href="${esc(mat.finalVideo)}" target="_blank" rel="noopener">Titta på videon</a></p>` : `<p class="empty">Ingen video tillagd ännu.</p>`}
+    <div class="form-row" style="max-width:500px;"><label for="video-url">Länk till den färdiga videon</label><input id="video-url" type="text" placeholder="https://..." value="${esc(mat.finalVideo||'')}"></div>
+    <button class="btn small" id="video-save">Spara videolänk</button>
+  </div>`;
+}
+
+/* ===================== FÖRBÄTTRINGSFÖRSLAG ===================== */
+const SUGGESTION_STATUS_LABELS = {ny:'Ny', planerad:'Planerad', klar:'Klar'};
+function viewForslag(){
+  return `
+  <div class="panel">
+    <h2>Förslag på förbättringar <span class="tip-icon" data-tip="Skriv konkreta förslag på förändringar eller nya funktioner i Vaksam. Allt sparas automatiskt, och Thomas (utvecklaren) markerar vad som är planerat eller klart.">i</span></h2>
+    <div class="form-row"><label for="sugg-text">Ditt förslag</label><textarea id="sugg-text" rows="3" placeholder="Vad vill du ändra, lägga till eller förbättra i Vaksam?"></textarea></div>
+    <button class="btn small" id="sugg-add">Skicka förslag</button>
+  </div>
+  <div class="panel">
+    <h2>Alla förslag</h2>
+    ${state.user.isAdmin ? `<button class="btn small secondary" id="sugg-summary" style="margin-bottom:14px;">Skapa sammanfattning (checklista)</button>` : ''}
+    ${state.suggestions.length ? [...state.suggestions].sort((a,b)=>b.addedAt-a.addedAt).map(s=>`
+      <div class="task-card">
+        <div class="task-top">
+          <h4 style="font-weight:400;">${esc(s.text)}</h4>
+          ${state.user.isAdmin ? `<select class="status-select" data-sugg-status="${s.id}">
+            <option value="ny" ${(!s.status||s.status==='ny')?'selected':''}>Ny</option>
+            <option value="planerad" ${s.status==='planerad'?'selected':''}>Planerad</option>
+            <option value="klar" ${s.status==='klar'?'selected':''}>Klar</option>
+          </select>` : `<span class="badge ${s.status==='klar'?'approved':'pending'}">${SUGGESTION_STATUS_LABELS[s.status]||'Ny'}</span>`}
+        </div>
+        <div class="task-meta">Från ${esc(s.addedBy)} · ${new Date(s.addedAt).toLocaleDateString('sv-SE')}</div>
+      </div>`).join('') : `<p class="empty">Inga förslag ännu.</p>`}
+  </div>`;
+}
+
+function generateSuggestionsSummary(){
+  const order = ['ny','planerad','klar'];
+  let html = `<h1>Förbättringsförslag — checklista</h1><p class="pc-meta">Sammanställt ${esc(new Date().toLocaleDateString('sv-SE'))} via Vaksam.</p>`;
+  order.forEach(st=>{
+    const items = state.suggestions.filter(s=>(s.status||'ny')===st);
+    if(!items.length) return;
+    html += `<h2>${esc(SUGGESTION_STATUS_LABELS[st])} (${items.length})</h2><ul>${items.map(s=>`<li>${esc(s.text)} <span class="pc-meta">— ${esc(s.addedBy)}, ${new Date(s.addedAt).toLocaleDateString('sv-SE')}</span></li>`).join('')}</ul>`;
+  });
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+
+
+/* ===================== RÖSTNING ===================== */
+function viewRostning(){
+  return `
+  <div class="panel">
+    <h3>Skapa ny omröstning <span class="tip-icon" data-tip="Använd omröstning när gruppen behöver bestämma något konkret, till exempel vilket delämne ni ska fördjupa er i eller vilket mötesdatum som gäller.">i</span></h3>
+    <div class="form-row"><label for="poll-q">Fråga</label><input id="poll-q" type="text" placeholder="Vad ska vi rösta om?"></div>
+    <div class="form-row"><label for="poll-opts">Svarsalternativ <span class="muted">(ett per rad, minst två)</span></label>
+      <textarea id="poll-opts" rows="3" placeholder="Alternativ A
+Alternativ B"></textarea>
+    </div>
+    <button class="btn small" id="poll-create">Skapa omröstning</button>
+  </div>
+
+  <div class="panel">
+    <h2>Pågående omröstningar</h2>
+    ${state.polls.length ? [...state.polls].reverse().map(p=>renderPoll(p)).join('') : `<p class="empty">Inga omröstningar ännu.</p>`}
+  </div>`;
+}
+function renderPoll(p){
+  const votes = p.votes || {};
+  const total = Object.keys(votes).length;
+  const myVote = votes[state.user.email];
+  return `
+  <div class="poll">
+    <h4>${esc(p.question)}</h4>
+    <div class="muted">Skapad av ${esc(p.createdBy)} · ${total} röst${total===1?'':'er'}</div>
+    ${p.options.map((opt,i)=>{
+      const count = Object.values(votes).filter(v=>v===i).length;
+      const pct = total? Math.round(count/total*100):0;
+      return `<div class="opt-row">
+        <button data-vote-poll="${p.id}" data-opt="${i}" class="${myVote===i?'voted':''}">${myVote===i?'✓ ':''}${esc(opt)}</button>
+        <div class="opt-bar-wrap"><div class="opt-bar" style="width:${pct}%"></div></div>
+        <div class="opt-pct">${count} · ${pct}%</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+}
+
+/* ===================== ARBETSFÖRDELNING ===================== */
+function viewUppgifter(){
+  const approved = state.members.filter(m=>m.status==='approved');
+  const sorted = [...state.tasks].sort((a,b)=> (a.deadline||'9999').localeCompare(b.deadline||'9999'));
+  return `
+  <div class="panel">
+    <h3>Ny uppgift <span class="tip-icon" data-tip="Varje uppgift ska ha exakt en ansvarig person och ett eget deadline, enligt gruppkontraktets princip om eget ansvar — ingen ska behöva påminna någon annan.">i</span></h3>
+    <div class="two-col-form">
+      <div class="form-row"><label for="task-title">Vad ska göras?</label><input id="task-title" type="text"></div>
+      <div class="form-row"><label for="task-assignee">Ansvarig</label>
+        <select id="task-assignee">${approved.map(m=>`<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="two-col-form">
+      <div class="form-row"><label for="task-deadline">Deadline</label><input id="task-deadline" type="date"></div>
+      <div class="form-row"><label for="task-desc">Kort beskrivning (valfritt)</label><input id="task-desc" type="text"></div>
+    </div>
+    <button class="btn small" id="task-create">Lägg till uppgift</button>
+  </div>
+
+  <div class="panel">
+    <h2>Alla uppgifter <span class="tip-icon" data-tip="Bara den ansvarige personen (eller gruppledaren) kan ändra status på en uppgift.">i</span></h2>
+    ${sorted.length ? sorted.map(t=>{
+      const statusClass = t.status==='klar'?'status-klar':(t.status==='pagar'?'status-pagar':(isOverdue(t)?'status-forsenad':''));
+      const canEdit = state.user.isAdmin || t.assignee===state.user.name;
+      return `<div class="task-card ${statusClass}">
+        <div class="task-top">
+          <h4>${esc(t.title)}</h4>
+          ${canEdit ? `<select class="status-select" data-task-status="${t.id}">
+              <option value="ej" ${t.status==='ej'?'selected':''}>Ej påbörjad</option>
+              <option value="pagar" ${t.status==='pagar'?'selected':''}>Pågår</option>
+              <option value="klar" ${t.status==='klar'?'selected':''}>Klar</option>
+            </select>` : `<span class="badge ${t.status==='klar'?'approved':'pending'}">${t.status==='klar'?'Klar':t.status==='pagar'?'Pågår':'Ej påbörjad'}</span>`}
+        </div>
+        <div class="task-meta">Ansvarig: <b>${esc(t.assignee)}</b> · Deadline: ${t.deadline?fmtDate(t.deadline):'–'} ${isOverdue(t)?'· <span style="color:var(--red)">försenad</span>':''}</div>
+        ${t.desc?`<div style="margin-top:6px;font-size:14px;">${esc(t.desc)}</div>`:''}
+        ${t.delivers?`<div class="muted" style="margin-top:4px;">Levererar: ${esc(t.delivers)}</div>`:''}
+      </div>`;
+    }).join('') : `<p class="empty">Inga uppgifter tillagda ännu.</p>`}
+  </div>`;
+}
+function isOverdue(t){ return t.status!=='klar' && t.deadline && t.deadline < todayISO(); }
+function reorderRoleTask(taskId, direction){
+  const rows = [...state.tasks].sort((a,b)=>(a.order??a.createdAt)-(b.order??b.createdAt));
+  const idx = rows.findIndex(t=>t.id===taskId);
+  const swapIdx = idx+direction;
+  if(idx<0 || swapIdx<0 || swapIdx>=rows.length) return;
+  const a = rows[idx], b = rows[swapIdx];
+  const orderA = a.order??a.createdAt, orderB = b.order??b.createdAt;
+  a.order = orderB; b.order = orderA;
+}
+
+/* ===================== MÖTEN & KALENDER ===================== */
+const AVAIL_DAYS = 10;
+const AVAIL_HOURS = ['15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+function availDates(){
+  return Array.from({length:AVAIL_DAYS}, (_,i)=>todayISO(i));
+}
+function slotKey(date,hour){ return date+'_'+hour; }
+
+function viewKalender(){
+  const approved = state.members.filter(m=>m.status==='approved');
+  const dates = availDates();
+  const mine = state.avail[state.user.email] || [];
+
+  // heat map counts
+  const counts = {};
+  dates.forEach(d=>AVAIL_HOURS.forEach(h=>{
+    const k=slotKey(d,h);
+    let c=0;
+    approved.forEach(m=>{ if((state.avail[m.email]||[]).includes(k)) c++; });
+    counts[k]=c;
+  }));
+  const maxCount = approved.length || 1;
+  let best = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,3).filter(e=>e[1]>0);
+
+  const now = Date.now();
+  const myMeetings = state.meetings.filter(m=>{
+    const invited = !m.invitees || !m.invitees.length || m.invitees.includes(state.user.email);
+    const start = new Date(m.date+'T'+m.time+':00').getTime();
+    return invited && start > now - 60*60000;
+  }).sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time));
+  const nextMine = myMeetings[0];
+  const nextAny = [...state.meetings].filter(m=>new Date(m.date+'T'+m.time+':00').getTime() > now - 60*60000)
+    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0];
+
+  const notifState = ('Notification' in window) ? Notification.permission : 'unsupported';
+
+  return `
+  ${nextMine ? `
+  <div class="panel" style="border-color:var(--accent-deep);background:#F4EEDD;">
+    <h2>Du är inbjuden <span class="tip-icon" data-tip="Du ser det här längst upp eftersom du står som inbjuden till mötet nedan.">i</span></h2>
+    <p>Nästa möte du är kallad till: <b>${fmtDate(nextMine.date)} kl ${nextMine.time}</b> (${nextMine.duration||60} min) via <b>${serviceLabel(nextMine)}</b>. Bokat av ${esc(nextMine.createdBy)}.</p>
+    <p class="hint">Se knappar för att starta/öppna mötet och markera att du är med, längre ner under "Inbokade möten".</p>
+  </div>` : ''}
+
+  <div class="panel">
+    <h2>Agenda till nästa möte <span class="tip-icon" data-tip="Alla kan lägga till punkter när som helst. Klistra in en hel text för att automatiskt dela upp den i punkter, eller lägg till en i taget. Bocka av under mötet så alla ser vad som är avklarat.">i</span></h2>
+    <p class="hint">Skriv in ämnen och punkter ni vill ta upp — listan blir automatiskt en tydlig checklista.</p>
+    <div style="display:flex;gap:8px;">
+      <input type="text" id="agenda-input" placeholder="t.ex. Bestäm slutgiltigt case" style="flex:1;padding:9px 10px;border:1px solid var(--line-strong);border-radius:var(--radius);">
+      <button class="btn small" id="agenda-add">Lägg till punkt</button>
+    </div>
+
+    <details style="margin-top:12px;">
+      <summary style="cursor:pointer;font-size:13.5px;color:var(--ink-soft);">Har du redan skrivit ihop en hel text? Klistra in den här så delas den upp automatiskt ▾</summary>
+      <div style="margin-top:8px;">
+        <p class="hint" style="margin-top:0;">OBS: ingen AI läser eller tolkar texten — den delas upp rad för rad, och långa sammanhängande rader delas dessutom upp mening för mening. Punktlistetecken och siffror städas bort automatiskt.</p>
+        <textarea id="agenda-bulk" rows="5" placeholder="Klistra in text här, en punkt per rad..." style="width:100%;border:1px solid var(--line-strong);border-radius:var(--radius);padding:8px;"></textarea>
+        <button class="btn small secondary" id="agenda-bulk-split" style="margin-top:8px;">Dela upp i punkter</button>
+      </div>
+    </details>
+
+    ${state.agenda.length ? `
+      <ol style="margin-top:16px;padding-left:22px;">
+        ${state.agenda.map(a=>`<li style="margin-bottom:6px;display:flex;justify-content:space-between;gap:10px;align-items:baseline;">
+          <label style="display:flex;gap:8px;align-items:baseline;cursor:pointer;">
+            <input type="checkbox" data-agenda-done="${a.id}" ${a.done?'checked':''} style="margin-top:3px;">
+            <span style="${a.done?'text-decoration:line-through;color:var(--ink-soft);':''}">${esc(a.text)} <span class="muted">— ${esc(a.addedBy)}</span></span>
+          </label>
+          ${(state.user.isAdmin || a.addedBy===state.user.name) ? `<button class="btn small secondary" data-agenda-delete="${a.id}" style="flex:none;">Ta bort</button>` : ''}
+        </li>`).join('')}
+      </ol>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+        <button class="btn small secondary" id="agenda-print">Skriv ut agenda (kopiera till Google Doc)</button>
+        ${state.user.isAdmin ? `<button class="btn small secondary" id="agenda-clear">Rensa agendan (efter mötet)</button>` : ''}
+      </div>
+    ` : `<p class="empty" style="margin-top:10px;">Inga punkter tillagda ännu.</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Lägg till möte manuellt <span class="tip-icon" data-tip="Använd detta för ett möte som redan är bestämt utanför Vaksam (t.ex. muntligt eller i en annan kanal) — det behöver inte gå via röstning eller tillgänglighetsförslagen.">i</span></h2>
+    <div class="two-col-form">
+      <div class="form-row"><label for="manual-date">Datum</label><input type="date" id="manual-date"></div>
+      <div class="form-row"><label for="manual-time">Tid</label><input type="time" id="manual-time"></div>
+    </div>
+    <div class="form-row" style="max-width:200px;"><label for="manual-duration">Längd</label>
+      <select id="manual-duration"><option value="30">30 minuter</option><option value="60" selected>60 minuter</option></select>
+    </div>
+    <div style="display:flex;gap:14px;margin-bottom:10px;font-size:14px;">
+      <label><input type="radio" name="manual-service" value="meet" checked> Google Meet</label>
+      <label><input type="radio" name="manual-service" value="zoom"> Zoom</label>
+      <label><input type="radio" name="manual-service" value="teams"> Teams</label>
+    </div>
+    <div class="form-row"><label for="manual-link">Möteslänk (valfritt, kan läggas till senare)</label><input type="text" id="manual-link" placeholder="https://..."></div>
+    <div style="margin-bottom:10px;">
+      <label class="muted" style="display:block;margin-bottom:6px;">Deltagare</label>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${approved.map(m=>`<label style="display:flex;align-items:center;gap:5px;font-size:13.5px;border:1px solid var(--line);padding:4px 8px;border-radius:var(--radius);">
+          <input type="checkbox" data-manual-invitee="${esc(m.email)}" checked> ${esc(m.name)}
+        </label>`).join('')}
+      </div>
+    </div>
+    <button class="btn small" id="manual-add-meeting">Lägg till mötet</button>
+  </div>
+
+  <div class="panel">
+    <h2>Mötespåminnelser i webbläsaren <span class="tip-icon" data-tip="Detta är INTE en riktig push-notis som når din mobil när sidan är stängd — det kräver en server som den här gratisplattformen inte har. Så länge du har fliken öppen (den kan ligga i bakgrunden) visas en påminnelse i webbläsaren 10 minuter innan ett möte du är inbjuden till.">i</span></h2>
+    ${notifState==='granted' ? `<p class="hint">Påminnelser är aktiverade i den här webbläsaren.</p>` :
+      notifState==='unsupported' ? `<p class="hint">Din webbläsare stödjer inte den här typen av påminnelser.</p>` :
+      `<button class="btn small" id="enable-notifs">Aktivera mötespåminnelser i den här webbläsaren</button>
+       <p class="hint" style="margin-top:8px;">Fungerar bara om du har Vaksam öppet i en flik (kan ligga i bakgrunden) på den här enheten vid tillfället.</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Starta videomöte nu <span class="tip-icon" data-tip="Öppnar ett nytt möte direkt i respektive tjänst. Kräver att du är inloggad i Google/Zoom/Teams i webbläsaren. Teams öppnar ett schemaläggningsfönster istället för att starta direkt.">i</span></h2>
+    <p class="hint">Använd detta för ett spontant möte. Vill ni boka in ett möte i förväg med inbjudan till specifika personer, se "Bästa förslag" eller "Lägg till möte manuellt" istället.</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn" id="start-meet">Starta Google Meet</button>
+      <button class="btn secondary" id="start-zoom">Starta Zoom</button>
+      <button class="btn secondary" id="start-teams">Starta Teams</button>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Er tillgänglighet <span class="tip-icon" data-tip="Klicka i de tider (nästa ${AVAIL_DAYS} dagar) du kan vara med på ett möte. Grönt visar dina egna markeringar; mörkare ruta i tabellen längre ner betyder att fler i gruppen kan då.">i</span></h2>
+    <p class="hint">Bra för återkommande veckomöten — resten av samordningen sker via chatten.</p>
+    <div class="availgrid">
+      <table>
+        <tr><th>Tid</th>${dates.map(d=>`<th>${fmtDate(d)}</th>`).join('')}</tr>
+        ${AVAIL_HOURS.map(h=>`<tr><th>${h}</th>${dates.map(d=>{
+          const k=slotKey(d,h); const isMine = mine.includes(k);
+          return `<td><button class="cell-btn ${isMine?'mine':''}" data-avail="${k}" title="${h} ${fmtDate(d)}"></button></td>`;
+        }).join('')}</tr>`).join('')}
+      </table>
+    </div>
+    <div class="legend"><span><span class="swatch" style="background:#D9E7D6"></span> Du är tillgänglig</span></div>
+  </div>
+
+  <div class="panel">
+    <h2>Gruppens överlapp <span class="tip-icon" data-tip="Ju mörkare ruta, desto fler medlemmar har markerat att de kan då. Grönmarkerad ruta = hela gruppen kan.">i</span></h2>
+    <div class="availgrid">
+      <table>
+        <tr><th>Tid</th>${dates.map(d=>`<th>${fmtDate(d)}</th>`).join('')}</tr>
+        ${AVAIL_HOURS.map(h=>`<tr><th>${h}</th>${dates.map(d=>{
+          const k=slotKey(d,h); const c=counts[k]||0;
+          const heat = c===0?'heat0':(c>=maxCount&&maxCount>0?'heatfull':c>=Math.ceil(maxCount*0.66)?'heat3':c>=Math.ceil(maxCount*0.33)?'heat2':'heat1');
+          return `<td class="${heat}" title="${c} av ${maxCount} kan">${c||''}</td>`;
+        }).join('')}</tr>`).join('')}
+      </table>
+    </div>
+    <div class="legend">
+      <span><span class="swatch heat1"></span> Få</span>
+      <span><span class="swatch heat2"></span> Flera</span>
+      <span><span class="swatch heat3"></span> De flesta</span>
+      <span><span class="swatch heatfull" style="background:#33553A"></span> Alla</span>
+    </div>
+    ${best.length ? `
+      <h3 style="margin-top:18px;">Bästa förslag <span class="tip-icon" data-tip="Klicka Boka möte för att välja längd, deltagare och videotjänst innan mötet skapas.">i</span></h3>
+      ${best.map(([k,c])=>{ const [date,hour]=k.split('_');
+        if(bookingDraft && bookingDraft.date===date && bookingDraft.time===hour){
+          return `
+          <div style="padding:12px 0;border-bottom:1px solid var(--line);">
+            <div style="margin-bottom:8px;"><b>${fmtDate(date)} kl ${hour}</b> — välj längd, deltagare och videotjänst:</div>
+            <div class="form-row" style="max-width:200px;"><label for="draft-duration">Längd</label>
+              <select id="draft-duration"><option value="30">30 minuter</option><option value="60" selected>60 minuter</option></select>
+            </div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+              ${approved.map(m=>`<label style="display:flex;align-items:center;gap:5px;font-size:13.5px;border:1px solid var(--line);padding:4px 8px;border-radius:var(--radius);">
+                <input type="checkbox" data-invitee="${esc(m.email)}" checked> ${esc(m.name)}
+              </label>`).join('')}
+            </div>
+            <div style="display:flex;gap:14px;margin-bottom:10px;font-size:14px;">
+              <label><input type="radio" name="video-service" value="meet" checked> Google Meet</label>
+              <label><input type="radio" name="video-service" value="zoom"> Zoom</label>
+              <label><input type="radio" name="video-service" value="teams"> Teams</label>
+            </div>
+            <button class="btn small" id="confirm-book">Bekräfta bokning</button>
+            <button class="btn small secondary" id="cancel-book">Avbryt</button>
+          </div>`;
+        }
+        return `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);">
+          <div>${fmtDate(date)} kl ${hour} — <b>${c} av ${maxCount}</b> tillgängliga</div>
+          <button class="btn small" data-book="${date}|${hour}">Boka möte</button>
+        </div>`;
+      }).join('')}
+      <button class="btn small secondary" id="ask-ai" style="margin-top:12px;">Visa smart förslag</button>
+      <div id="ai-result"></div>
+    ` : `<p class="empty">Ingen har markerat tillgänglighet än.</p>`}
+  </div>
+
+  <div class="panel">
+    <h2>Inbokade möten <span class="tip-icon" data-tip="Deltagare markerar själva att de är med i mötet — plattformen kan inte se in i Zoom, Teams eller Google Meet och veta det automatiskt.">i</span></h2>
+    ${state.meetings.length ? [...state.meetings].sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time)).map(m=>{
+      const service = serviceLabel(m);
+      const linkLabel = m.meetLink && m.meetLink.includes('zoom.us') ? 'Öppna i Zoom' : (m.meetLink && m.meetLink.includes('meet.google.com') ? 'Öppna Google Meet' : (m.meetLink && m.meetLink.includes('teams.microsoft.com') ? 'Öppna i Teams' : 'Öppna möteslänk'));
+      const invitedNames = (m.invitees && m.invitees.length) ? m.invitees.map(e=>{ const mem=state.members.find(x=>x.email===e); return mem?mem.name:e; }) : approved.map(a=>a.name);
+      const joined = m.joined || [];
+      const iAmInvited = !m.invitees || !m.invitees.length || m.invitees.includes(state.user.email);
+      const iHaveJoined = joined.includes(state.user.email);
+      return `
+      <div class="task-card">
+        <div class="task-top"><h4>${fmtDate(m.date)} kl ${m.time} (${m.duration||60} min) — ${service}</h4></div>
+        <div class="task-meta">Bokat av ${esc(m.createdBy)} · Inbjudna: ${invitedNames.map(esc).join(', ')}</div>
+        <div class="task-meta">Anmälda i mötet just nu: ${joined.length ? joined.map(e=>{const mem=state.members.find(x=>x.email===e);return esc(mem?mem.name:e);}).join(', ') : 'ingen än'}</div>
+        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          ${m.meetLink ? `<a class="btn small secondary" href="${esc(m.meetLink)}" target="_blank" rel="noopener">${linkLabel}</a>` :
+            `<a class="btn small secondary" href="${serviceStartUrl(m)}" target="_blank" rel="noopener">Starta ${service}</a>`}
+          <a class="btn small secondary" target="_blank" rel="noopener" href="${gcalUrl(m)}">Lägg till i Google Kalender</a>
+          ${!m.meetLink ? `<button class="btn small" data-addlink="${m.id}">Lägg till möteslänk</button>` : `<button class="btn small secondary" data-addlink="${m.id}">Byt länk</button>`}
+          ${iAmInvited ? `<button class="btn small ${iHaveJoined?'':'secondary'}" data-join="${m.id}">${iHaveJoined?'✓ Du är med':'Jag är med i mötet nu'}</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') : `<p class="empty">Inga möten inbokade ännu.</p>`}
+  </div>`;
+}
+
+function serviceLabel(m){ return m.videoService==='zoom' ? 'Zoom' : (m.videoService==='teams' ? 'Teams' : 'Google Meet'); }
+function serviceStartUrl(m){
+  if(m.videoService==='zoom') return 'https://zoom.new';
+  if(m.videoService==='teams') return 'https://teams.microsoft.com/l/meeting/new?subject='+encodeURIComponent('Vaksam-möte');
+  return 'https://meet.new';
+}
+
+function splitTextToAgendaItems(text){
+  const rawLines = text.split('\n').map(l=>l.trim()).filter(Boolean);
+  let items = [];
+  rawLines.forEach(line=>{
+    const cleaned = line.replace(/^[\s\-\*•\u2022\d]+[\.\)]?\s*/, '').trim();
+    if(!cleaned) return;
+    // Om raden är lång och ser ut att innehålla flera meningar (sammanhängande text
+    // utan egna radbrytningar), dela upp den ytterligare på meningsslut.
+    if(cleaned.length > 80 && /[.!?]\s+[A-ZÅÄÖ]/.test(cleaned)){
+      const sentences = cleaned.split(/(?<=[.!?])\s+(?=[A-ZÅÄÖ])/).map(s=>s.trim()).filter(Boolean);
+      items.push(...sentences);
+    } else {
+      items.push(cleaned);
+    }
+  });
+  return items;
+}
+
+function generateAgendaPrint(){
+  const upcoming = [...state.meetings].filter(m=>new Date(m.date+'T'+m.time+':00').getTime() > Date.now()-60*60000)
+    .sort((a,b)=>(a.date+a.time).localeCompare(b.date+b.time))[0];
+  let html = `<h1>Agenda</h1>`;
+  if(upcoming){
+    html += `<p class="pc-meta">${esc(fmtDate(upcoming.date))} kl ${esc(upcoming.time)} · ${upcoming.duration||60} minuter · ${esc(serviceLabel(upcoming))}${upcoming.meetLink?' · '+esc(upcoming.meetLink):''}</p>`;
+  } else {
+    html += `<p class="pc-meta">Inget möte inbokat ännu — boka ett under "Möten &amp; kalender".</p>`;
+  }
+  html += state.agenda.length ? `<ul style="list-style:none;padding-left:4px;">${state.agenda.map(a=>`<li style="margin-bottom:8px;">☐ ${esc(a.text)} <span class="pc-meta">— ${esc(a.addedBy)}</span></li>`).join('')}</ul>` : `<p><em>Inga punkter tillagda än.</em></p>`;
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+
+function gcalUrl(m){
+  const start = m.date.replace(/-/g,'') + 'T' + m.time.replace(':','') + '00';
+  const [h,min] = m.time.split(':').map(Number);
+  const endDate = new Date(m.date+'T'+m.time+':00');
+  endDate.setMinutes(endDate.getMinutes()+(m.duration||60));
+  const end = endDate.toISOString().slice(0,10).replace(/-/g,'') + 'T' + endDate.toTimeString().slice(0,8).replace(/:/g,'');
+  const text = encodeURIComponent('Gruppmöte — Desinformation & demokrati');
+  const details = encodeURIComponent('Möte för SVAP11-gruppuppgiften, bokat via Vaksam.' + (m.meetLink?(' Meet-länk: '+m.meetLink):''));
+  return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${text}&dates=${start}/${end}&details=${details}&ctz=Europe/Stockholm`;
+}
+
+/* ===================== GRUPPKONTRAKT ===================== */
+const CONTRACT_SECTIONS = [
+  {id:'moten', title:'Möten', tip:'Ramarna för hur och när gruppen träffas.', items:[
+    'Regelbundna digitala möten, exempelvis en gång i veckan',
+    'Möten bokas i god tid','Alla kommer förberedda',
+    'Frånvaro meddelas så tidigt som möjligt',
+    'Den som missar ett möte tar själv ansvar för att ta del av informationen',
+    'Möten används för samordning, beslut och återkoppling',
+    'Arbete mellan möten sker självständigt']},
+  {id:'arbetsmiljo', title:'Arbetsmiljö', tip:'Hur gruppen pratar med och om varandra.', items:[
+    'Respektfull och inkluderande kommunikation','Alla får möjlighet att komma till tals',
+    'Konstruktiv återkoppling','Respekt för olika arbetssätt och arbetstider',
+    'Respekt för varandras fritid','Inga krav på omedelbara svar kvällar och helger',
+    'Problem och irritation tas upp tidigt']},
+  {id:'verktyg', title:'Samarbetsverktyg', tip:'Var information och filer ska finnas.', items:[
+    'En gemensam kanal för kommunikation','En gemensam plats för dokument och filer',
+    'Tydlig struktur för mappar och dokument','Endast aktuell version används',
+    'Viktiga beslut dokumenteras','Viktig information ska inte enbart finnas i privata meddelanden']},
+  {id:'beslut', title:'Beslut', tip:'Hur gruppen bestämmer saker.', items:[
+    'Diskussion och konsensus i första hand','Alla ges möjlighet att framföra sin åsikt',
+    'Majoritetsbeslut vid oenighet','Ansvarig person kan fatta beslut inom sitt eget ansvarsområde',
+    'Viktiga beslut dokumenteras','Alla tar ansvar för att invändningar framförs i tid']},
+  {id:'ledning', title:'Gruppens ledning', tip:'Hur ansvaret för helheten fördelas.', items:[
+    'Delat ansvar för gruppens arbete','Ingen permanent gruppledare',
+    'Samordningsansvar kan rotera','Var och en ansvarar för sina egna uppgifter och deadlines',
+    'Gruppen ansvarar gemensamt för helheten','Den som upptäcker ett problem tar initiativ till att lyfta det']},
+  {id:'eget', title:'Eget ansvar', tip:'Vad var och en förväntas ta ansvar för själv.', items:[
+    'Självständigt ansvar för tilldelade uppgifter','Ansvar för egna deadlines',
+    'Ansvar för kvaliteten på det egna arbetet','Självständig planering av arbetet',
+    'Informera gruppen tidigt vid problem eller försening','Be om hjälp vid behov',
+    'Ingen ska behöva kontrollera eller påminna andra om deras uppgifter']},
+  {id:'reflektion', title:'Reflektion', tip:'Återkommande avstämning av hur samarbetet fungerar.', items:[
+    'Regelbundna korta avstämningar','Vad fungerar bra?','Vad fungerar mindre bra?',
+    'Fungerar arbetsfördelningen?','Fungerar kommunikationen?','Håller vi våra överenskommelser?',
+    'Vad behöver förändras?']},
+  {id:'konflikt', title:'Vid eventuell konflikt', tip:'Så hanteras oenighet innan den växer.', items:[
+    'Problem tas upp tidigt','I första hand direkt med berörd person',
+    'Fokus på sakfrågan, inte personen','Respektfull och konstruktiv dialog',
+    'Gemensam lösning eftersträvas','Gruppen involveras om problemet kvarstår',
+    'Lärare/handledare kontaktas vid behov']},
+  {id:'kvalitet', title:'Kvalitetssäkring', tip:'Hur gruppen säkerställer att resultatet håller måttet.', items:[
+    'Gemensamma krav på kvalitet','Alla tar del av slutprodukten','Alla får möjlighet att ge återkoppling',
+    'Gemensam kontroll före inlämning','Kontroll av källor och referenser','Kontroll av språk och formalia',
+    'Alla följer kursens regler för akademisk integritet och AI-användning']},
+  {id:'ovrigt', title:'Övrigt', tip:'Praktiska frågor som inte passar under andra rubriker.', items:[
+    'Tydlig arbetsfördelning','Gemensamma deadlines','Rimlig och transparent arbetsbelastning',
+    'Överenskommelse om ambitionsnivå','Rutiner vid sjukdom eller längre frånvaro',
+    'Rutiner för ändrad arbetsfördelning','Gruppkontraktet kan ändras efter gemensamt beslut']}
+];
+
+function contractItemVotes(secId, idx){ return ((state.contract[secId]||{}).itemVotes||{})[idx] || {}; }
+function itemJaNej(secId, idx){
+  const votes = contractItemVotes(secId, idx);
+  let ja=0, nej=0;
+  Object.values(votes).forEach(v=>{ if(v==='ja') ja++; else if(v==='nej') nej++; });
+  return {ja, nej};
+}
+function itemHasMajority(secId, idx, totalApproved){
+  const {ja} = itemJaNej(secId, idx);
+  return totalApproved>0 && ja > totalApproved/2;
+}
+
+function viewKontrakt(){
+  const approved = state.members.filter(m=>m.status==='approved');
+  const totalApproved = approved.length;
+  const totalItems = CONTRACT_SECTIONS.reduce((sum,s)=>sum+s.items.length,0);
+  let castVotes = 0, decidedItems = 0, myVotesCast = 0;
+  CONTRACT_SECTIONS.forEach(sec=>sec.items.forEach((it,idx)=>{
+    const {ja,nej} = itemJaNej(sec.id, idx);
+    castVotes += ja+nej;
+    if(itemHasMajority(sec.id, idx, totalApproved)) decidedItems++;
+    if(contractItemVotes(sec.id, idx)[state.user.email]) myVotesCast++;
+  }));
+  const totalPossible = totalItems * Math.max(totalApproved,1);
+  const allVoted = totalApproved>0 && castVotes >= totalItems*totalApproved;
+  const iAmDone = totalItems>0 && myVotesCast===totalItems;
+
+  return `
+  <div class="panel">
+    <h2>Gruppkontrakt <span class="tip-icon" data-tip="Rösta ja/nej på varje punkt. En punkt tas med i det slutgiltiga kontraktet när fler än hälften av gruppens medlemmar röstat ja på den. Dina öppna rutor stängs inte längre när du röstar.">i</span></h2>
+    <p class="hint">Generiskt förslag att diskutera och revidera. Rösta på varje punkt nedan — de punkter som får majoritet (mer än hälften av gruppens medlemmar) hamnar i det färdiga kontraktet.</p>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;padding-top:10px;border-top:1px solid var(--line);">
+      <div class="muted">${decidedItems} av ${totalItems} punkter har majoritet · ${castVotes} av ${totalPossible} möjliga röster avgivna${allVoted?' · alla har röstat på allt! 🎉':''}</div>
+      <button class="btn ${allVoted?'':'secondary'}" id="print-contract-btn">Skriv ut studiegruppskontraktet</button>
+    </div>
+  </div>
+  ${(iAmDone && !contractPromptDismissed && !contractConfirmed) ? `
+  <div class="panel" style="border-color:var(--accent-deep);background:#F4EEDD;">
+    <h3>Du har fyllt i allt! Vill du spara det såhär?</h3>
+    <p class="hint">Dina svar är redan sparade löpande — det här är bara en bekräftelse. Du kan alltid komma tillbaka och ändra dig, hela översikten finns kvar precis som nu.</p>
+    <button class="btn small" id="contract-confirm-yes">Ja</button>
+    <button class="btn small secondary" id="contract-confirm-no">Nej, jag vill ändra något</button>
+  </div>` : ''}
+  ${(iAmDone && contractConfirmed) ? `
+  <div class="panel" style="padding:12px 24px;">
+    <span class="badge approved">✓ Du har bekräftat dina svar</span>
+    <button class="btn small secondary" id="contract-confirm-undo" style="margin-left:10px;">Ändra mig</button>
+  </div>` : ''}
+  ${CONTRACT_SECTIONS.map(sec=>{
+    const st = state.contract[sec.id] || {comments:[]};
+    return `
+    <details class="contract-sec" data-persist-key="contract-${sec.id}">
+      <summary>${esc(sec.title)} <span class="tip-icon" data-tip="${esc(sec.tip)}">i</span></summary>
+      <div class="contract-body">
+        <ul style="list-style:none;padding-left:0;">${sec.items.map((it,idx)=>{
+          const {ja,nej} = itemJaNej(sec.id, idx);
+          const myVote = contractItemVotes(sec.id, idx)[state.user.email];
+          const majority = itemHasMajority(sec.id, idx, totalApproved);
+          return `<li style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);flex-wrap:wrap;">
+            <span style="flex:1;min-width:200px;">${esc(it)} ${majority?'<span class="badge approved">Antagen</span>':''}</span>
+            <span style="display:flex;gap:6px;flex:none;">
+              <button class="btn small ${myVote==='ja'?'':'secondary'}" data-item-vote="${sec.id}|${idx}|ja" style="${myVote==='ja'?'background:var(--green);border-color:var(--green);':''}">👍 ${ja}</button>
+              <button class="btn small ${myVote==='nej'?'':'secondary'}" data-item-vote="${sec.id}|${idx}|nej" style="${myVote==='nej'?'background:var(--red);border-color:var(--red);':''}">👎 ${nej}</button>
+            </span>
+          </li>`;
+        }).join('')}</ul>
+        ${st.comments && st.comments.length ? st.comments.map(c=>`<div class="comment-item"><b>${esc(c.name)}:</b> ${esc(c.text)}</div>`).join('') : ''}
+        <textarea class="comment" placeholder="Föreslå en ändring eller kommentera…" data-contract-comment-box="${sec.id}"></textarea>
+        <button class="btn small secondary" data-contract-comment-send="${sec.id}" style="margin-top:6px;">Skicka kommentar</button>
+      </div>
+    </details>`;
+  }).join('')}
+  `;
+}
+
+function generatePrintContract(){
+  const approved = state.members.filter(m=>m.status==='approved');
+  const totalApproved = approved.length;
+  const dateStr = new Date().toLocaleDateString('sv-SE',{year:'numeric',month:'long',day:'numeric'});
+  const sectionsHtml = CONTRACT_SECTIONS.map(sec=>{
+    const passed = sec.items.filter((it,idx)=>itemHasMajority(sec.id, idx, totalApproved));
+    if(!passed.length) return '';
+    return `<h3>${esc(sec.title)}</h3><ul>${passed.map(it=>`<li>${esc(it)}</li>`).join('')}</ul>`;
+  }).join('');
+  const html = `
+    <h1>Studiegruppskontrakt för grupp 5</h1>
+    <p class="pc-meta">Utskrivet ${esc(dateStr)} via Vaksam.</p>
+    <h2>Medlemmar</h2>
+    <ul>${approved.map(m=>`<li>${esc(m.name)}</li>`).join('') || '<li>Inga registrerade medlemmar</li>'}</ul>
+    ${sectionsHtml || '<p><em>Inga punkter har ännu majoritet. Fortsätt rösta i gruppkontraktet innan ni skriver ut ett fullständigt kontrakt.</em></p>'}
+    <p class="pc-meta">Punkter tas med när fler än hälften av gruppens ${totalApproved} medlemmar röstat ja.</p>
+  `;
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+
+
+/* ===================== event handlers ===================== */
+function attachHandlers(){
+  const v = document.getElementById('view');
+
+  // håll <details>-rutor öppna över omritningar (t.ex. gruppkontrakt, källbank)
+  v.querySelectorAll('details[data-persist-key]').forEach(d=>{
+    if(openDetailsKeys.has(d.dataset.persistKey)) d.setAttribute('open','');
+    d.addEventListener('toggle', ()=>{
+      if(d.open) openDetailsKeys.add(d.dataset.persistKey);
+      else openDetailsKeys.delete(d.dataset.persistKey);
+    });
+  });
+
+  // overview: milestones
+  const msSave = document.getElementById('ms-save');
+  if(msSave) msSave.addEventListener('click', async ()=>{
+    const d = document.getElementById('ms-deadline').value;
+    if(!d) return;
+    const ms = computeMilestones(d);
+    await sSet(K.milestones, ms);
+    state.milestones = ms; render();
+  });
+
+  // uppgiften: caseval
+  const caseSave = document.getElementById('case-save');
+  if(caseSave) caseSave.addEventListener('click', async ()=>{
+    const val = document.getElementById('case-select').value;
+    const a = { ...state.assignment, selectedCase: val || null };
+    await sSet(K.assignment, a); state.assignment = a; render();
+  });
+  const casePoll = document.getElementById('case-poll');
+  if(casePoll) casePoll.addEventListener('click', async ()=>{
+    state.polls.push({
+      id:uid(), question:'Vilket case ska vi välja för gruppuppgiften?',
+      options: CASE_OPTIONS.map(c=>c.name), votes:{}, createdBy:state.user.name, createdAt:Date.now()
+    });
+    await sSet(K.polls, state.polls);
+    activeTab='rostning';
+    [...document.querySelectorAll('#tabs button')].forEach(x=>x.classList.toggle('active', x.dataset.tab==='rostning'));
+    render();
+  });
+
+  // uppgiften: skapa uppgifter från rollmallen
+  const tasksFromTemplate = document.getElementById('tasks-from-template');
+  if(tasksFromTemplate) tasksFromTemplate.addEventListener('click', async ()=>{
+    const approvedNames = state.members.filter(m=>m.status==='approved').map(m=>m.name);
+    ROLE_TEMPLATE.forEach((r,i)=>{
+      const assignee = approvedNames.find(n=>n===r.person) || r.person;
+      state.tasks.push({
+        id:uid(), title:r.role, assignee, deadline:(state.milestones?state.milestones.check1:''),
+        desc:r.task, delivers:r.delivers, status:'ej', createdAt:Date.now()+i, order:i
+      });
+    });
+    await sSet(K.tasks, state.tasks); render();
+  });
+  v.querySelectorAll('[data-role-edit]').forEach(el=>el.addEventListener('change', async ()=>{
+    const [taskId, field] = el.dataset.roleEdit.split('|');
+    const t = state.tasks.find(x=>x.id===taskId);
+    if(t) t[field] = el.value;
+    await sSet(K.tasks, state.tasks);
+  }));
+  v.querySelectorAll('[data-role-delete]').forEach(b=>b.addEventListener('click', async ()=>{
+    state.tasks = state.tasks.filter(t=>t.id!==b.dataset.roleDelete);
+    await sSet(K.tasks, state.tasks); render();
+  }));
+  v.querySelectorAll('[data-role-up]').forEach(b=>b.addEventListener('click', async ()=>{
+    reorderRoleTask(b.dataset.roleUp, -1);
+    await sSet(K.tasks, state.tasks); render();
+  }));
+  v.querySelectorAll('[data-role-down]').forEach(b=>b.addEventListener('click', async ()=>{
+    reorderRoleTask(b.dataset.roleDown, 1);
+    await sSet(K.tasks, state.tasks); render();
+  }));
+  const roleAddRow = document.getElementById('role-add-row');
+  if(roleAddRow) roleAddRow.addEventListener('click', async ()=>{
+    const maxOrder = state.tasks.reduce((m,t)=>Math.max(m, t.order??t.createdAt??0), 0);
+    state.tasks.push({id:uid(), title:'', assignee:'', desc:'', delivers:'', deadline:'', status:'ej', createdAt:Date.now(), order:maxOrder+1});
+    await sSet(K.tasks, state.tasks); render();
+  });
+
+  // uppgiften: körschema
+  v.querySelectorAll('[data-workflow]').forEach(cb=>cb.addEventListener('change', async ()=>{
+    const wf = { ...state.workflow };
+    wf[cb.dataset.workflow] = cb.checked;
+    await sSet(K.workflow, wf); state.workflow = wf; render();
+  }));
+
+  // uppgiften: evidenstabell
+  const evAdd = document.getElementById('ev-add');
+  if(evAdd) evAdd.addEventListener('click', async ()=>{
+    const claim = document.getElementById('ev-claim').value.trim();
+    const source = document.getElementById('ev-source').value.trim();
+    if(!claim || !source) return;
+    state.evidence.push({
+      id:uid(), claim, source,
+      link: document.getElementById('ev-link').value.trim(),
+      sourceType: document.getElementById('ev-type').value,
+      shows: document.getElementById('ev-shows').value.trim(),
+      dim: document.getElementById('ev-dim').value.trim(),
+      certainty: document.getElementById('ev-cert').value,
+      addedBy: state.user.name, addedAt: Date.now()
+    });
+    await sSet(K.evidence, state.evidence); render();
+  });
+  v.querySelectorAll('[data-ev-delete]').forEach(b=>b.addEventListener('click', async ()=>{
+    state.evidence = state.evidence.filter(r=>r.id!==b.dataset.evDelete);
+    await sSet(K.evidence, state.evidence); render();
+  }));
+
+  // members
+  v.querySelectorAll('[data-approve]').forEach(b=>b.addEventListener('click', async ()=>{
+    const id=b.dataset.approve; const m = state.members.find(x=>x.id===id);
+    if(m) m.status='approved';
+    await sSet(K.members, state.members); render();
+  }));
+  v.querySelectorAll('[data-reject]').forEach(b=>b.addEventListener('click', async ()=>{
+    const id=b.dataset.reject;
+    state.members = state.members.filter(x=>x.id!==id);
+    await sSet(K.members, state.members); render();
+  }));
+  const addBtn = document.getElementById('add-member-btn');
+  if(addBtn) addBtn.addEventListener('click', async ()=>{
+    const name=document.getElementById('add-name').value.trim();
+    const email=document.getElementById('add-email').value.trim().toLowerCase();
+    if(!name||!email) return;
+    if(state.members.some(m=>m.email===email)) return;
+    state.members.push({id:uid(),name,email,status:'approved',isAdmin:email===ADMIN_EMAIL,joinedAt:new Date().toISOString()});
+    await sSet(K.members, state.members); render();
+  });
+
+  // chat
+  const chatSend = document.getElementById('chat-send');
+  const chatInput = document.getElementById('chat-input');
+  if(chatSend){
+    const send = async ()=>{
+      const text = chatInput.value.trim();
+      if(!text) return;
+      const tagSel = document.getElementById('chat-tag');
+      const tag = tagSel ? tagSel.value : '';
+      state.chat.push({id:uid(), name:state.user.name, email:state.user.email, text, ts:Date.now(), threadId:activeThread, tag: tag||null});
+      chatInput.value='';
+      await sSet(K.chat, state.chat); render();
+    };
+    chatSend.addEventListener('click', send);
+    chatInput.addEventListener('keydown', e=>{ if(e.key==='Enter') send(); });
+  }
+  v.querySelectorAll('[data-thread]').forEach(b=>b.addEventListener('click', ()=>{
+    activeThread = b.dataset.thread; render();
+  }));
+  const newThread = document.getElementById('new-thread');
+  if(newThread) newThread.addEventListener('click', async ()=>{
+    const name = prompt('Namn på den nya tråden (t.ex. "Manus" eller "Teknik"):');
+    if(!name || !name.trim()) return;
+    const t = {id:uid(), name:name.trim(), createdBy:state.user.name, createdAt:Date.now()};
+    state.threads.push(t);
+    await sSet(K.threads, state.threads);
+    activeThread = t.id; render();
+  });
+  const makeChatSummary = document.getElementById('make-chat-summary');
+  if(makeChatSummary) makeChatSummary.addEventListener('click', generateChatSummary);
+
+  // material & länkar
+  const matSnapshot = () => ({
+    docs:[...(state.materials.docs||[])],
+    media:[...(state.materials.media||[])],
+    finalVideo: state.materials.finalVideo||'',
+    books:[...(state.materials.books||[])]
+  });
+  const docAdd = document.getElementById('doc-add');
+  if(docAdd) docAdd.addEventListener('click', async ()=>{
+    const title = document.getElementById('doc-title').value.trim();
+    const url = document.getElementById('doc-url').value.trim();
+    if(!title || !url) return;
+    const mat = matSnapshot();
+    mat.docs.push({id:uid(), title, url, addedBy:state.user.name});
+    await sSet(K.materials, mat); state.materials = mat; render();
+  });
+  const mediaAdd = document.getElementById('media-add');
+  if(mediaAdd) mediaAdd.addEventListener('click', async ()=>{
+    const title = document.getElementById('media-title').value.trim();
+    const url = document.getElementById('media-url').value.trim();
+    if(!title || !url) return;
+    const mat = matSnapshot();
+    mat.media.push({id:uid(), title, url, addedBy:state.user.name});
+    await sSet(K.materials, mat); state.materials = mat; render();
+  });
+  const videoSave = document.getElementById('video-save');
+  if(videoSave) videoSave.addEventListener('click', async ()=>{
+    const url = document.getElementById('video-url').value.trim();
+    const mat = matSnapshot();
+    mat.finalVideo = url;
+    await sSet(K.materials, mat); state.materials = mat; render();
+  });
+  const booksFromTemplate = document.getElementById('books-from-template');
+  if(booksFromTemplate) booksFromTemplate.addEventListener('click', async ()=>{
+    const mat = matSnapshot();
+    mat.books = BOOKS_TEMPLATE.map(b=>({id:uid(), title:b.title, author:b.author, pdfUrl:b.pdfUrl, appUrl:b.appUrl, accessRequests:[]}));
+    await sSet(K.materials, mat); state.materials = mat; render();
+  });
+  const bookAddRow = document.getElementById('book-add-row');
+  if(bookAddRow) bookAddRow.addEventListener('click', async ()=>{
+    const mat = matSnapshot();
+    mat.books.push({id:uid(), title:'', author:'', pdfUrl:'', appUrl:'', accessRequests:[]});
+    await sSet(K.materials, mat); state.materials = mat; render();
+  });
+  v.querySelectorAll('[data-book-edit]').forEach(el=>el.addEventListener('change', async ()=>{
+    const [bookId, field] = el.dataset.bookEdit.split('|');
+    const mat = matSnapshot();
+    const b = mat.books.find(x=>x.id===bookId);
+    if(b) b[field] = el.value;
+    await sSet(K.materials, mat); state.materials = mat; render();
+  }));
+  v.querySelectorAll('[data-book-delete]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const mat = matSnapshot();
+    mat.books = mat.books.filter(b=>b.id!==btn.dataset.bookDelete);
+    await sSet(K.materials, mat); state.materials = mat; render();
+  }));
+  v.querySelectorAll('[data-req-access]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const bookId = btn.dataset.reqAccess;
+    const input = v.querySelector(`[data-req-email="${bookId}"]`);
+    const email = input.value.trim().toLowerCase();
+    if(!email || !email.includes('@')){ alert('Fyll i en giltig e-postadress.'); return; }
+    const mat = matSnapshot();
+    const b = mat.books.find(x=>x.id===bookId);
+    if(!b) return;
+    b.accessRequests = b.accessRequests || [];
+    if(!b.accessRequests.some(r=>r.email===email)){
+      b.accessRequests.push({email, requestedAt:Date.now(), granted:false});
+    }
+    await sSet(K.materials, mat); state.materials = mat; render();
+  }));
+  v.querySelectorAll('[data-req-toggle]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const [bookId, email] = btn.dataset.reqToggle.split('|');
+    const mat = matSnapshot();
+    const b = mat.books.find(x=>x.id===bookId);
+    const r = b && (b.accessRequests||[]).find(x=>x.email===email);
+    if(r) r.granted = !r.granted;
+    await sSet(K.materials, mat); state.materials = mat; render();
+  }));
+
+  // förbättringsförslag
+  const suggAdd = document.getElementById('sugg-add');
+  if(suggAdd) suggAdd.addEventListener('click', async ()=>{
+    const text = document.getElementById('sugg-text').value.trim();
+    if(!text) return;
+    state.suggestions.push({id:uid(), text, addedBy:state.user.name, addedAt:Date.now(), status:'ny'});
+    await sSet(K.suggestions, state.suggestions); render();
+  });
+  v.querySelectorAll('[data-sugg-status]').forEach(sel=>sel.addEventListener('change', async ()=>{
+    const s = state.suggestions.find(x=>x.id===sel.dataset.suggStatus);
+    if(s) s.status = sel.value;
+    await sSet(K.suggestions, state.suggestions); render();
+  }));
+  const suggSummary = document.getElementById('sugg-summary');
+  if(suggSummary) suggSummary.addEventListener('click', generateSuggestionsSummary);
+
+  // polls
+  const pollCreate = document.getElementById('poll-create');
+  if(pollCreate) pollCreate.addEventListener('click', async ()=>{
+    const q = document.getElementById('poll-q').value.trim();
+    const opts = document.getElementById('poll-opts').value.split('\n').map(s=>s.trim()).filter(Boolean);
+    if(!q || opts.length<2) return;
+    state.polls.push({id:uid(), question:q, options:opts, votes:{}, createdBy:state.user.name, createdAt:Date.now()});
+    await sSet(K.polls, state.polls); render();
+  });
+  v.querySelectorAll('[data-vote-poll]').forEach(b=>b.addEventListener('click', async ()=>{
+    const pid=b.dataset.votePoll, opt=Number(b.dataset.opt);
+    const p = state.polls.find(x=>x.id===pid);
+    if(!p) return;
+    p.votes = p.votes||{};
+    p.votes[state.user.email]=opt;
+    await sSet(K.polls, state.polls); render();
+  }));
+
+  // tasks
+  const taskCreate = document.getElementById('task-create');
+  if(taskCreate) taskCreate.addEventListener('click', async ()=>{
+    const title=document.getElementById('task-title').value.trim();
+    const assignee=document.getElementById('task-assignee').value;
+    const deadline=document.getElementById('task-deadline').value;
+    const desc=document.getElementById('task-desc').value.trim();
+    if(!title||!assignee) return;
+    state.tasks.push({id:uid(), title, assignee, deadline, desc, status:'ej', createdAt:Date.now()});
+    await sSet(K.tasks, state.tasks); render();
+  });
+  v.querySelectorAll('[data-task-status]').forEach(s=>s.addEventListener('change', async ()=>{
+    const t = state.tasks.find(x=>x.id===s.dataset.taskStatus);
+    if(t) t.status = s.value;
+    await sSet(K.tasks, state.tasks); render();
+  }));
+
+  // availability
+  v.querySelectorAll('[data-avail]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const k = btn.dataset.avail;
+    const mine = state.avail[state.user.email] || [];
+    const idx = mine.indexOf(k);
+    if(idx>-1) mine.splice(idx,1); else mine.push(k);
+    state.avail[state.user.email]=mine;
+    await sSet(K.avail, state.avail); render();
+  }));
+  v.querySelectorAll('[data-book]').forEach(btn=>btn.addEventListener('click', ()=>{
+    const [date,time] = btn.dataset.book.split('|');
+    bookingDraft = {date, time};
+    render();
+  }));
+  const confirmBook = document.getElementById('confirm-book');
+  if(confirmBook) confirmBook.addEventListener('click', async ()=>{
+    const invitees = [...v.querySelectorAll('[data-invitee]')].filter(cb=>cb.checked).map(cb=>cb.dataset.invitee);
+    const service = v.querySelector('input[name="video-service"]:checked').value;
+    const duration = Number(document.getElementById('draft-duration').value);
+    state.meetings.push({
+      id:uid(), date:bookingDraft.date, time:bookingDraft.time, createdBy:state.user.name,
+      meetLink:'', videoService:service, duration, invitees, joined:[]
+    });
+    bookingDraft = null;
+    await sSet(K.meetings, state.meetings); render();
+  });
+  const cancelBook = document.getElementById('cancel-book');
+  if(cancelBook) cancelBook.addEventListener('click', ()=>{ bookingDraft = null; render(); });
+  const manualAdd = document.getElementById('manual-add-meeting');
+  if(manualAdd) manualAdd.addEventListener('click', async ()=>{
+    const date = document.getElementById('manual-date').value;
+    const time = document.getElementById('manual-time').value;
+    if(!date || !time){ alert('Fyll i både datum och tid.'); return; }
+    const duration = Number(document.getElementById('manual-duration').value);
+    const service = v.querySelector('input[name="manual-service"]:checked').value;
+    const link = document.getElementById('manual-link').value.trim();
+    const invitees = [...v.querySelectorAll('[data-manual-invitee]')].filter(cb=>cb.checked).map(cb=>cb.dataset.manualInvitee);
+    state.meetings.push({
+      id:uid(), date, time, createdBy:state.user.name,
+      meetLink:link, videoService:service, duration, invitees, joined:[]
+    });
+    await sSet(K.meetings, state.meetings); render();
+  });
+  v.querySelectorAll('[data-addlink]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const link = prompt('Klistra in möteslänken (Google Meet, Zoom eller Teams):');
+    if(!link) return;
+    const m = state.meetings.find(x=>x.id===btn.dataset.addlink);
+    if(m) m.meetLink=link.trim();
+    await sSet(K.meetings, state.meetings); render();
+  }));
+  v.querySelectorAll('[data-join]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    const m = state.meetings.find(x=>x.id===btn.dataset.join);
+    if(!m) return;
+    m.joined = m.joined || [];
+    const i = m.joined.indexOf(state.user.email);
+    if(i>-1) m.joined.splice(i,1); else m.joined.push(state.user.email);
+    await sSet(K.meetings, state.meetings); render();
+  }));
+  const startMeet = document.getElementById('start-meet');
+  if(startMeet) startMeet.addEventListener('click', ()=> window.open('https://meet.new','_blank'));
+  const startZoom = document.getElementById('start-zoom');
+  if(startZoom) startZoom.addEventListener('click', ()=> window.open('https://zoom.new','_blank'));
+  const startTeams = document.getElementById('start-teams');
+  if(startTeams) startTeams.addEventListener('click', ()=> window.open('https://teams.microsoft.com/l/meeting/new?subject='+encodeURIComponent('Vaksam-möte'),'_blank'));
+  const enableNotifs = document.getElementById('enable-notifs');
+  if(enableNotifs) enableNotifs.addEventListener('click', async ()=>{
+    await Notification.requestPermission();
+    render();
+  });
+  const askAi = document.getElementById('ask-ai');
+  if(askAi) askAi.addEventListener('click', runAiRecommendation);
+
+  // agenda till nästa möte
+  const agendaAdd = document.getElementById('agenda-add');
+  if(agendaAdd) agendaAdd.addEventListener('click', async ()=>{
+    const input = document.getElementById('agenda-input');
+    const text = input.value.trim();
+    if(!text) return;
+    state.agenda.push({id:uid(), text, addedBy:state.user.name, addedAt:Date.now()});
+    input.value='';
+    await sSet(K.agenda, state.agenda); render();
+  });
+  v.querySelectorAll('[data-agenda-delete]').forEach(btn=>btn.addEventListener('click', async ()=>{
+    state.agenda = state.agenda.filter(a=>a.id!==btn.dataset.agendaDelete);
+    await sSet(K.agenda, state.agenda); render();
+  }));
+  v.querySelectorAll('[data-agenda-done]').forEach(cb=>cb.addEventListener('change', async ()=>{
+    const a = state.agenda.find(x=>x.id===cb.dataset.agendaDone);
+    if(a) a.done = cb.checked;
+    await sSet(K.agenda, state.agenda); render();
+  }));
+  const agendaBulkSplit = document.getElementById('agenda-bulk-split');
+  if(agendaBulkSplit) agendaBulkSplit.addEventListener('click', async ()=>{
+    const box = document.getElementById('agenda-bulk');
+    const items = splitTextToAgendaItems(box.value);
+    if(!items.length) return;
+    items.forEach(text=>{
+      state.agenda.push({id:uid(), text, addedBy:state.user.name, addedAt:Date.now(), done:false});
+    });
+    box.value='';
+    await sSet(K.agenda, state.agenda); render();
+  });
+  const agendaPrint = document.getElementById('agenda-print');
+  if(agendaPrint) agendaPrint.addEventListener('click', generateAgendaPrint);
+  const agendaClear = document.getElementById('agenda-clear');
+  if(agendaClear) agendaClear.addEventListener('click', async ()=>{
+    if(!confirm('Rensa hela agendan? Detta går inte att ångra.')) return;
+    state.agenda = [];
+    await sSet(K.agenda, state.agenda); render();
+  });
+
+  // contract
+  v.querySelectorAll('[data-item-vote]').forEach(b=>b.addEventListener('click', async ()=>{
+    const [secId, idxStr, choice] = b.dataset.itemVote.split('|');
+    const st = state.contract[secId] || {comments:[], itemVotes:{}};
+    st.itemVotes = st.itemVotes || {};
+    st.itemVotes[idxStr] = st.itemVotes[idxStr] || {};
+    const current = st.itemVotes[idxStr][state.user.email];
+    st.itemVotes[idxStr][state.user.email] = (current===choice) ? undefined : choice;
+    if(st.itemVotes[idxStr][state.user.email]===undefined) delete st.itemVotes[idxStr][state.user.email];
+    state.contract[secId]=st;
+    contractConfirmed = false; contractPromptDismissed = false;
+    await sSet(K.contract, state.contract); render();
+  }));
+  const confirmYes = document.getElementById('contract-confirm-yes');
+  if(confirmYes) confirmYes.addEventListener('click', ()=>{ contractConfirmed = true; render(); });
+  const confirmNo = document.getElementById('contract-confirm-no');
+  if(confirmNo) confirmNo.addEventListener('click', ()=>{ contractPromptDismissed = true; render(); });
+  const confirmUndo = document.getElementById('contract-confirm-undo');
+  if(confirmUndo) confirmUndo.addEventListener('click', ()=>{ contractConfirmed = false; render(); });
+  const printBtn = document.getElementById('print-contract-btn');
+  if(printBtn) printBtn.addEventListener('click', generatePrintContract);
+  v.querySelectorAll('[data-contract-comment-send]').forEach(b=>b.addEventListener('click', async ()=>{
+    const id=b.dataset.contractCommentSend;
+    const box = v.querySelector(`[data-contract-comment-box="${id}"]`);
+    const text = box.value.trim();
+    if(!text) return;
+    const st = state.contract[id] || {comments:[], itemVotes:{}};
+    st.comments = st.comments || [];
+    st.comments.push({name:state.user.name, text});
+    state.contract[id]=st;
+    await sSet(K.contract, state.contract); render();
+  }));
+}
+
+/* ---------------- smart mötesförslag (regelbaserad, körs lokalt i webbläsaren) ----------------
+   OBS: en riktig AI-drivet (Claude-driven) förslag kräver en server som håller en API-nyckel
+   hemlig — det går inte att göra säkert på en öppen GitHub-sida utan egen backend. Den här
+   funktionen ger istället ett tydligt, regelbaserat förslag baserat på samma data. */
+function runAiRecommendation(){
+  const box = document.getElementById('ai-result');
+  const approved = state.members.filter(m=>m.status==='approved');
+  const dates = availDates();
+  const counts = {};
+  dates.forEach(d=>AVAIL_HOURS.forEach(h=>{
+    const k=slotKey(d,h); let c=0;
+    approved.forEach(m=>{ if((state.avail[m.email]||[]).includes(k)) c++; });
+    if(c>0) counts[k]=c;
+  }));
+  const ranked = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  if(!ranked.length){
+    box.innerHTML = `<div class="ai-box">Ingen har markerat tillgänglighet än, så det går inte att ge ett förslag.</div>`;
+    return;
+  }
+  const [bestKey, bestCount] = ranked[0];
+  const [bestDate, bestHour] = bestKey.split('_');
+  const full = bestCount >= approved.length;
+  let msNote = '';
+  const ms = state.milestones;
+  if(ms){
+    if(bestDate > ms.deadline) msNote = ' Observera att detta datum ligger efter ert inskicksdatum — boka ett tidigare möte också.';
+    else if(bestDate >= ms.finalReady) msNote = ' Det här ligger nära er inskicksdeadline — bra som ett sista avstämningsmöte, men boka gärna ett tidigare möte också.';
+  }
+  const text = full
+    ? `${fmtDate(bestDate)} kl ${bestHour} passar hela gruppen (${bestCount} av ${approved.length}). Boka det mötet.${msNote}`
+    : `Ingen tid passar hela gruppen än. Bäst just nu är ${fmtDate(bestDate)} kl ${bestHour}, med ${bestCount} av ${approved.length} tillgängliga. Överväg att boka den ändå och lösa resten via chatten, eller be de som saknas markera fler tider.${msNote}`;
+  box.innerHTML = `<div class="ai-box">${esc(text)}</div>`;
+}
+</script>
+</body>
+</html>
